@@ -6,13 +6,15 @@ So lässt sich jeder einzeln schalten und messen, statt dass ein Sammelprozess a
 
 ## Zusammenspiel
 
-Das Klangwerk gehört zu [Leitstelle](https://github.com/HalloWelt42/leitstelle) und
-[Maschinenraum](https://github.com/HalloWelt42/maschinenraum). Der Maschinenraum des Rechners startet, hält an und
-misst die Dienste; die Leitstelle vermittelt die Anfragen der Anwendungen an sie und plant ihren Speicher ein. Die
-Dienste lauschen nur auf ihrem Rechner (`127.0.0.1`); Anwendungen erreichen sie über die Leitstelle.
+Das Klangwerk gehört zu [Leitstelle](https://github.com/HalloWelt42/leitstelle),
+[Maschinenraum](https://github.com/HalloWelt42/maschinenraum) und [Stellwerk](https://github.com/HalloWelt42/stellwerk).
+Der Maschinenraum des Rechners startet, hält an und misst die Dienste; die Leitstelle vermittelt die Anfragen der
+Anwendungen an sie und plant ihren Speicher ein. Die Dienste lauschen nur auf ihrem Rechner (`127.0.0.1`);
+Anwendungen erreichen sie über die Leitstelle. Die Anwendungen selbst, etwa eine Sprachwerkstatt, sind Webapps im
+Stellwerk und halten keine eigenen Modelle.
 
 ```
-Anwendungen  ->  Leitstelle  ->  Maschinenraum  ->  Klangwerk sprechen, klonen, hoeren, sprecher, trennen
+Webapps (Stellwerk)  ->  Leitstelle  ->  Maschinenraum  ->  Klangwerk sprechen, klonen, hoeren, sprecher, trennen
 ```
 
 ## Die Dienste
