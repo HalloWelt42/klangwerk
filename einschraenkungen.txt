@@ -1,0 +1,17 @@
+# Erprobte Paketstände (aus dem bisherigen Sprachdienst übernommen, dort im Betrieb bewährt).
+# Installieren mit: pip install -c einschraenkungen.txt -e ".[test]"
+fastapi==0.135.3
+uvicorn==0.43.0
+python-multipart==0.0.22
+numpy==2.4.4
+soundfile==0.13.1
+mlx==0.31.1
+mlx-audio==0.4.2
+mlx-whisper==0.4.3
+silero-vad==6.2.1
+speechbrain==1.1.0
+pyannote-audio==4.0.4
+torch==2.8.0
+torchaudio==2.8.0
+transformers==5.5.0
+huggingface_hub==1.9.0
