@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from .ausgabe import Audioergebnis, abholen_anbieten, ablegen, als_wav
 from .unterbau import Einstellungen, Rechner, anwendung
+from .laenge import hoechstens_token
 
 log = logging.getLogger("klangwerk.sprechen")
 PORT = 8781
@@ -111,7 +112,8 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
 
     async def synthese(text: str, **regler: Any) -> np.ndarray:
         for versuch in range(VERSUCHE):
-            audio = await rechner.rechnen(motor.erzeugen, text=text, **regler)
+            audio = await rechner.rechnen(motor.erzeugen, text=text, max_tokens=hoechstens_token(text, regler.get("speed", 1.0)),
+                                          **regler)
             if audio is not None:
                 return audio
             log.warning("Synthese-Versuch %d: kein Audio, wiederhole", versuch + 1)

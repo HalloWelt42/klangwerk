@@ -14,6 +14,7 @@ from fastapi import File, Form, HTTPException, UploadFile
 
 from .ausgabe import Audioergebnis, abholen_anbieten, ablegen
 from .unterbau import Einstellungen, Rechner, anwendung, datei_annehmen, wegraeumen
+from .laenge import hoechstens_token
 
 log = logging.getLogger("klangwerk.klonen")
 PORT = 8782
@@ -111,7 +112,7 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
             audio = None
             for versuch in range(VERSUCHE):
                 audio = await rechner.rechnen(motor.erzeugen, text=text, ref_audio=str(referenz), ref_text=prompt_text,
-                                              language=language, speed=speed)
+                                              language=language, speed=speed, max_tokens=hoechstens_token(text, speed))
                 if audio is not None:
                     break
                 log.warning("Klon-Versuch %d: kein Audio, wiederhole", versuch + 1)

@@ -15,7 +15,7 @@ import pytest
 import soundfile as sf
 from fastapi.testclient import TestClient
 
-from klangwerk import hoeren, klonen, sprechen, sprecher, trennen
+from klangwerk import hoeren, klonen, laenge, sprechen, sprecher, trennen
 from klangwerk.unterbau import Einstellungen, Rechner, ZugangFehlt
 
 RATE = 24000
@@ -70,6 +70,7 @@ def test_sprechen(tmp_path: Path):
         d = r.json()
         assert d["duration"] == 1.0 and d["sample_rate"] == RATE and d["voice"] == "aiden"
         assert len(m.aufrufe) == 2 and m.aufrufe[1]["instruct"] == "ruhig"           # Wiederholung nach leerem Versuch
+        assert m.aufrufe[1]["max_tokens"] == laenge.hoechstens_token(m.aufrufe[1]["text"], m.aufrufe[1].get("speed", 1.0))
         assert c.get(f"/tts/audio/{d['filename']}").content[:4] == b"RIFF"
         assert c.get("/tts/audio/..%2Fgeheim.wav").status_code == 404
         r = c.post("/v1/audio/speech", json={"input": "Hallo", "voice": "serena"})
@@ -125,6 +126,7 @@ def test_klonen(tmp_path: Path):
         assert r.status_code == 200, r.text
         assert abs(r.json()["duration"] - 1.0) < 0.02                                       # Artefakt entfernt
         assert m.aufrufe[0]["ref_text"] == "Referenz" and not Path(m.aufrufe[0]["ref_audio"]).exists()   # aufgeräumt
+        assert m.aufrufe[0]["max_tokens"] == laenge.hoechstens_token("Hallo")                     # nie bis 4096 durchlaufen
         # ohne Text: reiner Abdruck (ref_text None), nie ICL mit leerem Text; ausdrücklich abdruck trotz Text
         assert c.post("/tts/clone", data={"text": "Hallo"}, files={"ref_audio": ("s.mp3", b"ID3", "audio/mpeg")}).status_code == 200
         assert m.aufrufe[-1]["ref_text"] is None
@@ -294,3 +296,11 @@ def test_ton_rechnet_mit_ffmpeg_ohne_modell(tmp_path):
         assert c.get(f"/ton/ergebnis/{name}").status_code == 404
         kaputt = c.post("/ton/aufbereiten", files={"datei": ("k.wav", b"kein Ton", "audio/wav")}, data={"auftrag": "{}"})
         assert kaputt.status_code == 422 and kaputt.json()["error"]["code"] == "ton_fehler"
+
+
+def test_hoechstlaenge_nach_text():
+    """Großzügig (5 Zeichen je Sekunde und 3 s Rand), langsameres Tempo verlängert, nie über die Vorgabe des Modells."""
+    assert laenge.hoechstens_token("Hallo") == 48                                    # (3 + 1) s * 12
+    assert laenge.hoechstens_token("x" * 180) == (3 + 36) * 12                       # ein langes Stück: 39 s
+    assert laenge.hoechstens_token("x" * 180, tempo=0.5) == (3 + 36) * 24
+    assert laenge.hoechstens_token("x" * 100000) == laenge.HOECHSTENS_TOKEN
