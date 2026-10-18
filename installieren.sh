@@ -42,8 +42,9 @@ if [ -d "$DIENSTE" ]; then
   dienstdatei klonen "Stimmklon" "Stimme aus einer Referenz klonen, Qwen3-TTS Base" 8782 stimme_klonen 6
   dienstdatei hoeren "Hören" "Spracherkennung mit Whisper Large V3" 8783 hoeren 4
   dienstdatei sprecher "Sprechermerkmal" "Stimmabdruck je Abschnitt (ECAPA), auf dem Prozessor" 8784 sprecher_erkennen 1
-  dienstdatei trennen "Sprechertrennung" "Wer spricht wann (pyannote); braucht KLANGWERK_HF_TOKEN unter [umgebung]" 8785 sprecher_trennen 2
-  dienstdatei ton "Ton" "Tonarbeit der Apps (wandeln, messen, blenden, legen) mit ffmpeg, ohne Modell; der Pi rechnet nicht" 8786 ton 1 30 4
+  # Sprechertrennung braucht KLANGWERK_HF_TOKEN unter [umgebung] ihrer Dienstdatei
+  dienstdatei trennen "Sprechertrennung" "Wer spricht wann: trennt die Sprecher einer Aufnahme nach Zeit (pyannote)" 8785 sprecher_trennen 2
+  dienstdatei ton "Ton" "Tonarbeit der Apps ohne Modell: wandeln, messen, blenden, legen (ffmpeg)" 8786 ton 1 30 4
 else
   echo "Kein Maschinenraum unter $DIENSTE; Dienste von Hand starten: $HIER/.venv/bin/klangwerk <dienst>"
 fi
