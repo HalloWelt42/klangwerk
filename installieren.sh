@@ -14,7 +14,7 @@ DIENSTE="${MASCHINENRAUM_ORDNER:-$HOME/Maschinenraum}/dienste"
 "$HIER/.venv/bin/pip" install --quiet -c "$HIER/einschraenkungen.txt" -e "$HIER[mlx,torch,ton]"
 echo "Umgebung bereit: $HIER/.venv"
 
-dienstdatei() {   # kennung name beschreibung port faehigkeit speicher_gb [startzeit_s]
+dienstdatei() {   # kennung name beschreibung port faehigkeit speicher_gb [startzeit_s] [plaetze]
   datei="$DIENSTE/klangwerk-$1.toml"
   if [ -f "$datei" ]; then echo "bleibt: $datei"; return; fi
   cat > "$datei" <<EOF
@@ -29,6 +29,7 @@ faehigkeiten = ["$5"]
 speicher_gb = $6
 startzeit_s = ${7:-300}
 anhaltezeit_s = 30
+plaetze = ${8:-1}
 
 [umgebung]
 HF_HUB_OFFLINE = "1"
@@ -42,7 +43,7 @@ if [ -d "$DIENSTE" ]; then
   dienstdatei hoeren "Hören" "Spracherkennung mit Whisper Large V3" 8783 hoeren 4
   dienstdatei sprecher "Sprechermerkmal" "Stimmabdruck je Abschnitt (ECAPA), auf dem Prozessor" 8784 sprecher_erkennen 1
   dienstdatei trennen "Sprechertrennung" "Wer spricht wann (pyannote); braucht KLANGWERK_HF_TOKEN unter [umgebung]" 8785 sprecher_trennen 2
-  dienstdatei ton "Ton" "Tonarbeit der Apps (wandeln, messen, blenden, legen) mit ffmpeg, ohne Modell; der Pi rechnet nicht" 8786 ton 1 30
+  dienstdatei ton "Ton" "Tonarbeit der Apps (wandeln, messen, blenden, legen) mit ffmpeg, ohne Modell; der Pi rechnet nicht" 8786 ton 1 30 4
 else
   echo "Kein Maschinenraum unter $DIENSTE; Dienste von Hand starten: $HIER/.venv/bin/klangwerk <dienst>"
 fi
