@@ -125,6 +125,13 @@ def test_klonen(tmp_path: Path):
         assert r.status_code == 200, r.text
         assert abs(r.json()["duration"] - 1.0) < 0.02                                       # Artefakt entfernt
         assert m.aufrufe[0]["ref_text"] == "Referenz" and not Path(m.aufrufe[0]["ref_audio"]).exists()   # aufgeräumt
+        # ohne Text: reiner Abdruck (ref_text None), nie ICL mit leerem Text; ausdrücklich abdruck trotz Text
+        assert c.post("/tts/clone", data={"text": "Hallo"}, files={"ref_audio": ("s.mp3", b"ID3", "audio/mpeg")}).status_code == 200
+        assert m.aufrufe[-1]["ref_text"] is None
+        c.post("/tts/clone", data={"text": "Hallo", "ref_text": "Referenz", "modus": "abdruck"},
+               files={"ref_audio": ("s.mp3", b"ID3", "audio/mpeg")})
+        assert m.aufrufe[-1]["ref_text"] is None
+        assert c.post("/tts/clone", data={"text": "Hallo", "modus": "icl"}, files={"ref_audio": ("s.mp3", b"ID3", "audio/mpeg")}).status_code == 400
         assert c.post("/tts/clone", data={"text": "x"}, files={"ref_audio": ("a.wav", b"", "audio/wav")}).status_code == 400
         assert c.post("/tts/clone", data={"text": " "}, files={"ref_audio": ("a.wav", b"x", "audio/wav")}).status_code == 400
         assert c.post("/tts/clone", data={"text": "x", "speed": "9"}, files={"ref_audio": ("a.wav", b"x", "audio/wav")}).status_code == 400

@@ -90,17 +90,27 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
 
     @app.post("/tts/clone")
     async def klonen(text: str = Form(...), ref_audio: UploadFile = File(...), ref_text: str = Form(""),
-                     language: str = Form("german"), speed: float = Form(1.0)) -> Audioergebnis:
+                     language: str = Form("german"), speed: float = Form(1.0),
+                     modus: str = Form("auto")) -> Audioergebnis:
+        """`modus`: "icl" klont mit Referenztext (übernimmt Klang, Sprache und Sprechweise der Probe), "abdruck" nur mit
+        dem Stimmabdruck der Probe (Klang ohne Akzent der Probensprache), "auto" mit Text ICL, ohne Abdruck. Ein leerer
+        Text darf nie ICL auslösen: das Modell klont dann mit einem falschen Prompt."""
         text = (text or "").strip()
         if not text:
             raise HTTPException(400, "Text darf nicht leer sein")
+        if modus not in ("auto", "icl", "abdruck"):
+            raise HTTPException(400, "Modus ist auto, icl oder abdruck")
+        mit_text = (ref_text or "").strip()
+        if modus == "icl" and not mit_text:
+            raise HTTPException(400, "Für icl braucht es den Referenztext")
+        prompt_text = mit_text if modus == "icl" or (modus == "auto" and mit_text) else None
         if not 0.1 <= speed <= 4.0:
             raise HTTPException(400, "Speed muss zwischen 0.1 und 4.0 liegen")
         referenz = await datei_annehmen(ref_audio, e, "Leere Referenz-Audio-Datei")
         try:
             audio = None
             for versuch in range(VERSUCHE):
-                audio = await rechner.rechnen(motor.erzeugen, text=text, ref_audio=str(referenz), ref_text=ref_text,
+                audio = await rechner.rechnen(motor.erzeugen, text=text, ref_audio=str(referenz), ref_text=prompt_text,
                                               language=language, speed=speed)
                 if audio is not None:
                     break
