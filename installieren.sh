@@ -14,7 +14,7 @@ DIENSTE="${MASCHINENRAUM_ORDNER:-$HOME/Maschinenraum}/dienste"
 "$HIER/.venv/bin/pip" install --quiet -c "$HIER/einschraenkungen.txt" -e "$HIER[mlx,torch,ton]"
 echo "Umgebung bereit: $HIER/.venv"
 
-dienstdatei() {   # kennung name beschreibung port faehigkeit speicher_gb [startzeit_s] [plaetze]
+dienstdatei() {   # kennung name beschreibung port faehigkeit speicher_gb [startzeit_s] [plaetze] [instanzen]
   datei="$DIENSTE/klangwerk-$1.toml"
   if [ -f "$datei" ]; then echo "bleibt: $datei"; return; fi
   cat > "$datei" <<EOF
@@ -22,7 +22,7 @@ dienstdatei() {   # kennung name beschreibung port faehigkeit speicher_gb [start
 name = "Klangwerk $2"
 beschreibung = "$3"
 ordner = "$HIER"
-befehl = [".venv/bin/python", "-m", "klangwerk", "$1"]
+befehl = [".venv/bin/python", "-m", "klangwerk", "$1", "--port", "\$MASCHINENRAUM_PORT"]
 port = $4
 pruefadresse = "http://127.0.0.1:$4/gesundheit"
 faehigkeiten = ["$5"]
@@ -30,6 +30,7 @@ speicher_gb = $6
 startzeit_s = ${7:-300}
 anhaltezeit_s = 30
 plaetze = ${8:-1}
+instanzen = ${9:-1}
 
 [umgebung]
 HF_HUB_OFFLINE = "1"
@@ -40,7 +41,7 @@ EOF
 if [ -d "$DIENSTE" ]; then
   dienstdatei sprechen "Sprechen" "Sprachsynthese mit Qwen3-TTS CustomVoice (9 Stimmen)" 8781 stimme 3
   dienstdatei klonen "Stimmklon" "Stimme aus einer Referenz klonen, Qwen3-TTS Base" 8782 stimme_klonen 6
-  dienstdatei hoeren "Hören" "Spracherkennung mit Whisper Large V3" 8783 hoeren 4
+  dienstdatei hoeren "Hören" "Spracherkennung mit Whisper Large V3" 8783 hoeren 4 300 1 2
   dienstdatei sprecher "Sprechermerkmal" "Stimmabdruck je Abschnitt (ECAPA), auf dem Prozessor" 8784 sprecher_erkennen 1
   # Sprechertrennung braucht KLANGWERK_HF_TOKEN unter [umgebung] ihrer Dienstdatei
   dienstdatei trennen "Sprechertrennung" "Wer spricht wann: trennt die Sprecher einer Aufnahme nach Zeit (pyannote)" 8785 sprecher_trennen 2
