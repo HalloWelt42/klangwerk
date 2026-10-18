@@ -1,6 +1,6 @@
 [project]
 name = "klangwerk"
-description = "Klangwerk: Sprachdienste je Modell (Sprechen, Stimmklon, Hören, Sprechermerkmal, Sprechertrennung), jeder ein eigener Prozess"
+description = "Klangwerk: Sprachdienste je Modell (Sprechen, Stimmklon, Hören, Sprechermerkmal, Sprechertrennung) und der Tondienst, jeder ein eigener Prozess"
 requires-python = ">=3.11"
 dynamic = ["version"]
 dependencies = [
@@ -17,6 +17,8 @@ dependencies = [
 # Je Dienst die Modellbibliothek; installieren.sh nimmt alle
 mlx = ["mlx>=0.25", "mlx-audio>=0.4", "mlx-whisper>=0.4", "silero-vad>=5"]
 torch = ["torch>=2.4", "torchaudio>=2.4", "speechbrain>=1.0", "pyannote-audio>=3.3"]
+# Tondienst: Protokoll, Routen und Rechnung aus dem Appkern (immer ein Commit, nie der Zweig)
+ton = ["appkern[tondienst] @ https://github.com/HalloWelt42/appkern/archive/3b9249591390be4a871b2a406eeeab25b3c59c97.tar.gz"]
 test = ["pytest>=8", "pytest-asyncio>=0.24", "httpx>=0.27"]
 
 [project.scripts]

@@ -1,4 +1,4 @@
-"""Startpunkt: `klangwerk <dienst> [--port N]`. Je Dienst ein eigener Prozess mit genau einem Modell."""
+"""Startpunkt: `klangwerk <dienst> [--port N]`. Je Dienst ein eigener Prozess mit genau einem Modell (der Tondienst ohne)."""
 
 from __future__ import annotations
 
@@ -13,13 +13,14 @@ DIENSTE = {
     "hoeren": "Spracherkennung (Whisper Large V3)",
     "sprecher": "Stimmabdruck je Abschnitt (ECAPA)",
     "trennen": "Wer spricht wann (pyannote)",
+    "ton": "Tonarbeit der Apps (ffmpeg, ohne Modell)",
 }
 
 
 def main() -> None:
     p = argparse.ArgumentParser(prog="klangwerk", description="Klangwerk: Sprachdienste, je Prozess ein Modell")
     p.add_argument("dienst", choices=sorted(DIENSTE), help="; ".join(f"{k}: {v}" for k, v in DIENSTE.items()))
-    p.add_argument("--port", type=int, help="Vorgabe je Dienst (8781 bis 8785)")
+    p.add_argument("--port", type=int, help="Vorgabe je Dienst (8781 bis 8786)")
     a = p.parse_args()
     modul = importlib.import_module(f"klangwerk.{a.dienst}")
     einstellungen = Einstellungen()

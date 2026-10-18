@@ -269,3 +269,28 @@ async def test_rechnen_vor_dem_laden_wird_abgelehnt(tmp_path: Path):
     with pytest.raises(HTTPException) as f:
         await r.rechnen(lambda: True)
     assert f.value.status_code == 503
+
+
+def test_ton_rechnet_mit_ffmpeg_ohne_modell(tmp_path):
+    """Der Tondienst (Appkern-Routen im Klangwerk): bereit ohne Modell, Messwerte und Ausgaben, einmal abholbar."""
+    from klangwerk import ton
+
+    welle = (0.5 * np.sin(2 * np.pi * 440 * np.arange(RATE * 2) / RATE)).astype(np.float32)
+    quelle = tmp_path / "quelle.wav"
+    sf.write(str(quelle), np.concatenate([np.zeros(RATE // 2, np.float32), welle]), RATE)
+    with TestClient(ton.erstellen(einstellungen(tmp_path))) as c:
+        bereit(c)
+        assert c.get("/gesundheit").json()["modell"] == "ffmpeg"
+        auftrag = {"ausgaben": [{"format": {"rate": 16000, "kanaele": 1, "kodierung": "pcm_s16le"}}],
+                   "messen": {"laut": {}}}
+        with quelle.open("rb") as f:
+            r = c.post("/ton/aufbereiten", files={"datei": ("quelle.wav", f, "audio/wav")}, data={"auftrag": json.dumps(auftrag)})
+        assert r.status_code == 200, r.text
+        erg = r.json()
+        assert abs(erg["messwerte"]["laut"]["von_s"] - 0.46) < 0.01 and abs(erg["ausgaben"][0]["dauer_s"] - 2.5) < 0.01
+        name = erg["ausgaben"][0]["name"]
+        datei = c.get(f"/ton/ergebnis/{name}")
+        assert datei.status_code == 200 and sf.info(io.BytesIO(datei.content)).samplerate == 16000
+        assert c.get(f"/ton/ergebnis/{name}").status_code == 404
+        kaputt = c.post("/ton/aufbereiten", files={"datei": ("k.wav", b"kein Ton", "audio/wav")}, data={"auftrag": "{}"})
+        assert kaputt.status_code == 422 and kaputt.json()["error"]["code"] == "ton_fehler"

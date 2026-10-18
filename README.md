@@ -14,7 +14,7 @@ Anwendungen erreichen sie über die Leitstelle. Die Anwendungen selbst, etwa ein
 Stellwerk und halten keine eigenen Modelle.
 
 ```
-Webapps (Stellwerk)  ->  Leitstelle  ->  Maschinenraum  ->  Klangwerk sprechen, klonen, hoeren, sprecher, trennen
+Webapps (Stellwerk)  ->  Leitstelle  ->  Maschinenraum  ->  Klangwerk sprechen, klonen, hoeren, sprecher, trennen, ton
 ```
 
 ## Die Dienste
@@ -26,6 +26,7 @@ Webapps (Stellwerk)  ->  Leitstelle  ->  Maschinenraum  ->  Klangwerk sprechen, 
 | `hoeren` | 8783 | hoeren | Whisper Large V3, Silero für Sprachpausen | Grafik (MLX) |
 | `sprecher` | 8784 | sprecher_erkennen | ECAPA-TDNN (SpeechBrain) | Prozessor |
 | `trennen` | 8785 | sprecher_trennen | pyannote speaker-diarization 3.1 | Grafik (torch) |
+| `ton` | 8786 | ton | ohne Modell: ffmpeg und numpy (Rechnung und Routen aus `appkern.ton`) | Prozessor |
 
 Ein anderes Modell für denselben Zweck (etwa VoiceDesign statt CustomVoice) ist ein weiterer Dienst mit
 `KLANGWERK_MODELL` in seiner Dienstdatei. Je Prozess bleibt es bei einem Modell.
@@ -47,6 +48,7 @@ gestoert).
 | hoeren | `POST /v1/audio/transcriptions` (`json`, `text`, `verbose_json`); `POST /stt` (Segmente mit Wortzeiten); `POST /stt/stream` (Ereignisstrom je Segment) |
 | sprecher | `POST /speaker/embed` (Datei und `segments` als JSON-Liste von start, end; Abdruck mit 192 Werten oder null unter 1 s) |
 | trennen | `POST /speaker/diarize` (Datei, optional `num_speakers`, `hf_token`); Antwort `turns` mit start, end, speaker |
+| ton | `POST /ton/aufbereiten`, `/ton/blenden`, `/ton/legen` (Dateien und `auftrag` als JSON, Modelle in `appkern.ton`); erzeugte Dateien einmal abholen mit `GET /ton/ergebnis/<name>`. Alle Tonarbeit der Apps läuft hier, der Pi rechnet nicht |
 
 Die Aufrufe `/tts`, `/tts/clone`, `/stt`, `/stt/stream` und `/speaker/*` entsprechen einem älteren Sammeldienst, damit
 Anwendungen ohne Umbau umziehen können. Übernommen sind auch seine Nachbesserungen: Wiederholung bei leerer Ausgabe,
