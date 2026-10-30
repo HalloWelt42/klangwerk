@@ -42,6 +42,7 @@ if [ -d "$DIENSTE" ]; then
   dienstdatei sprechen "Sprechen" "Sprachsynthese mit Qwen3-TTS CustomVoice (9 Stimmen)" 8781 stimme 3
   dienstdatei klonen "Stimmklon" "Stimme aus einer Referenz klonen, Qwen3-TTS Base" 8782 stimme_klonen 6
   dienstdatei hoeren "Hören" "Spracherkennung mit Whisper Large V3" 8783 hoeren 4 300 1 2
+  "$HIER/.venv/bin/python" -m klangwerk.selbstauskunft hoeren "$DIENSTE/klangwerk-hoeren.toml"   # Sprachen des Modells
   dienstdatei sprecher "Sprechermerkmal" "Stimmabdruck je Abschnitt (ECAPA), auf dem Prozessor" 8784 sprecher_erkennen 1
   # Sprechertrennung braucht KLANGWERK_HF_TOKEN unter [umgebung] ihrer Dienstdatei
   dienstdatei trennen "Sprechertrennung" "Wer spricht wann: trennt die Sprecher einer Aufnahme nach Zeit (pyannote)" 8785 sprecher_trennen 2

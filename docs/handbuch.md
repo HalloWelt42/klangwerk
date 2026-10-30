@@ -11,7 +11,7 @@ sicherung:
 schluessel_orte:
   - "Mac: `KLANGWERK_HF_TOKEN` unter `[umgebung]` in `~/Maschinenraum/dienste/klangwerk-trennen.toml` (Zugang für das gesperrte Modell der Sprechertrennung)"
 einrichten: einrichten.sh
-stand: 9efbc13
+stand: 710f05b
 ---
 
 # Klangwerk
@@ -57,7 +57,8 @@ cd {{ordner}} && ./einrichten.sh
 
 `./einrichten.sh` ruft `./installieren.sh`: `.venv` im Klon mit den Ständen aus `einschraenkungen.txt`, dann je Dienst
 eine Datei `~/Maschinenraum/dienste/klangwerk-<dienst>.toml`, aber nur, wenn es sie noch nicht gibt (Änderungen von
-Hand bleiben). Gestartet wird nichts.
+Hand bleiben). In die Datei von Hören kommen dazu die Sprachen des Modells (`sprachen`, aus seinem Tokenizer), die
+über die Leitstelle als Steckbrief an die Apps gehen. Gestartet wird nichts.
 
 Probe: `ls ~/Maschinenraum/dienste/klangwerk-*.toml | wc -l` meldet 6, und der Maschinenraum zeigt die sechs Dienste
 unter Dienste.
