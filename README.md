@@ -45,7 +45,7 @@ gestoert).
 |---|---|
 | sprechen | `POST /v1/audio/speech` (übliches Format, Antwort WAV); `POST /tts` (JSON, Datei unter `GET /tts/audio/<datei>`); `GET /tts/voices` |
 | klonen | `POST /tts/clone` (Formular: `text`, `ref_audio`, `ref_text`, `language`, `speed`); `GET /tts/audio/<datei>` |
-| hoeren | `POST /v1/audio/transcriptions` (`json`, `text`, `verbose_json`); `POST /stt` (Segmente mit Wortzeiten); `POST /stt/stream` (Ereignisstrom je Segment) |
+| hoeren | `POST /v1/audio/transcriptions` (`json`, `text`, `verbose_json`); `POST /stt` (Segmente mit Wortzeiten); `POST /stt/stream` (Ereignisstrom je Segment); alle nehmen einen Hinweis `prompt` (bis 1000 Zeichen, etwa ein Satz in sauberer Schreibweise und Fachwörter), den jedes Fenster von höchstens 28 s an Sprachpausen bekommt, ohne Bezug auf den vorigen Text |
 | sprecher | `POST /speaker/embed` (Datei und `segments` als JSON-Liste von start, end; Abdruck mit 192 Werten oder null unter 1 s) |
 | trennen | `POST /speaker/diarize` (Datei, optional `num_speakers`, `hf_token`); Antwort `turns` mit start, end, speaker |
 | ton | `POST /ton/aufbereiten`, `/ton/blenden`, `/ton/legen` (Dateien und `auftrag` als JSON, Modelle in `appkern.ton`); erzeugte Dateien einmal abholen mit `GET /ton/ergebnis/<name>`. Alle Tonarbeit der Apps läuft hier, der Pi rechnet nicht |

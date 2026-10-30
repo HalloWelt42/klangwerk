@@ -153,15 +153,17 @@ ROH = {"language": "de", "segments": [
 class ScheinHoeren:
     def __init__(self):
         self.aufrufe = []
+        self.hinweise = []
 
     def laden(self):
         return True
 
-    def erkennen(self, pfad, sprache):
+    def erkennen(self, pfad, sprache, hinweis=""):
         self.aufrufe.append(sprache)
+        self.hinweise.append(hinweis)
         return ROH
 
-    def abschnitte(self, pfad):
+    def abschnitte(self, pfad, hoechstens_s=15):
         return [{"start": 0.0, "end": 0.5}, {"start": 0.6, "end": 0.7}, {"start": 1.0, "end": 1.5}]   # mittlerer zu kurz
 
 
@@ -169,6 +171,36 @@ def test_segmente_bereinigen():
     s = hoeren.segmente_bereinigen(ROH["segments"])
     assert [x["text"] for x in s] == ["Guten Morgen wie geht es", "dir heute"]
     assert s[0]["start"] == 0.0 and s[0]["end"] == 7.0 and [w["word"] for w in s[0]["words"]] == [" Guten", " Morgen", " wie"]
+
+
+def test_segmente_ohne_wiederholten_hinweis():
+    roh = [{"start": 0.0, "end": 2.0, "text": " Qwen, ComfyUI.", "words": []},
+           {"start": 2.0, "end": 4.0, "text": "Wir starten Qwen.", "words": []}]
+    s = hoeren.segmente_bereinigen(roh, "Fachwörter: Qwen, ComfyUI, Zigbee.")
+    assert [x["text"] for x in s] == ["Wir starten Qwen."]
+    assert [x["text"] for x in hoeren.segmente_bereinigen(roh)] == ["Qwen, ComfyUI. Wir starten Qwen."]
+
+
+def test_fenster_und_verschieben():
+    assert hoeren.kuerzen({"start": 10.0, "end": 70.0}, 28) == [{"start": 10.0, "end": 30.0}, {"start": 30.0, "end": 50.0},
+                                                                {"start": 50.0, "end": 70.0}]
+    assert hoeren.kuerzen({"start": 0.0, "end": 5.0}, 28) == [{"start": 0.0, "end": 5.0}]
+    v = hoeren.verschieben([{"start": 1.0, "end": 2.0, "text": "a", "words": [{"word": "a", "start": 1.0, "end": 1.5}]}], 30.0)
+    assert v[0]["start"] == 31.0 and v[0]["words"][0]["end"] == 31.5
+
+
+def test_hoeren_gibt_hinweis_weiter(tmp_path: Path):
+    m = ScheinHoeren()
+    with TestClient(hoeren.erstellen(einstellungen(tmp_path), m)) as c:
+        bereit(c)
+        r = c.post("/stt", data={"language": "german", "prompt": "Fachwörter: Qwen."}, files={"file": ("a.wav", wav_bytes(), "audio/wav")})
+        assert r.status_code == 200 and m.hinweise[-1] == "Fachwörter: Qwen."
+        c.post("/v1/audio/transcriptions", data={"prompt": "Zigbee"}, files={"file": ("a.wav", wav_bytes(), "audio/wav")})
+        assert m.hinweise[-1] == "Zigbee"
+        c.post("/stt", data={"language": "german"}, files={"file": ("a.wav", wav_bytes(), "audio/wav")})
+        assert m.hinweise[-1] == ""
+        zu_lang = c.post("/stt", data={"prompt": "x" * 1001}, files={"file": ("a.wav", wav_bytes(), "audio/wav")})
+        assert zu_lang.status_code == 400
 
 
 def test_hoeren(tmp_path: Path):
