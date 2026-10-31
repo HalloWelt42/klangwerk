@@ -26,7 +26,7 @@ dienstdatei() {   # kennung name beschreibung port faehigkeit speicher_gb [start
   if [ -f "$datei" ]; then echo "bleibt: $datei"; return; fi
   cat > "$datei" <<EOF
 # Klangwerk: $2. Je Prozess genau ein Modell (der Tondienst ohne); es lädt beim Start, laufen heißt bereit.
-name = "Klangwerk $2"
+name = "$2"
 beschreibung = "$3"
 ordner = "$HIER"
 befehl = ["${12:-.venv}/bin/python", "-m", "klangwerk", "${10:-$1}", "--port", "\$MASCHINENRAUM_PORT"]
@@ -47,24 +47,24 @@ EOF
 }
 
 if [ -d "$DIENSTE" ]; then
-  dienstdatei sprechen "Sprechen" "Sprachsynthese mit Qwen3-TTS CustomVoice (9 Stimmen)" 8781 stimme 3
-  dienstdatei klonen "Stimmklon" "Stimme aus einer Referenz klonen, Qwen3-TTS Base" 8782 stimme_klonen 6
-  dienstdatei hoeren "Hören" "Spracherkennung mit Whisper Large V3" 8783 hoeren 4 300 1 2
+  dienstdatei sprechen "Klangwerk Sprechen" "Sprachsynthese mit Qwen3-TTS CustomVoice (9 Stimmen)" 8781 stimme 3
+  dienstdatei klonen "Klangwerk Stimmklon" "Stimme aus einer Referenz klonen, Qwen3-TTS Base" 8782 stimme_klonen 6
+  dienstdatei hoeren "Klangwerk Hören" "Spracherkennung mit Whisper Large V3" 8783 hoeren 4 300 1 2
   "$HIER/.venv/bin/python" -m klangwerk.selbstauskunft hoeren "$DIENSTE/klangwerk-hoeren.toml"   # Sprachen des Modells
   # Varianten des Hörens: weitere Dienste mit eigenem Modell, für die Apps je Auftrag wählbar
-  dienstdatei hoeren-8bit "Hören 8 Bit" "Spracherkennung mit Whisper Large V3 in 8 Bit" 8788 hoeren 3 300 1 1 \
+  dienstdatei hoeren-8bit "Whisper Large V3 (8 Bit)" "Spracherkennung mit Whisper Large V3 in 8 Bit" 8788 hoeren 3 300 1 1 \
     hoeren 'KLANGWERK_MODELL = "mlx-community/whisper-large-v3-mlx-8bit"'
   "$HIER/.venv/bin/python" -m klangwerk.selbstauskunft hoeren "$DIENSTE/klangwerk-hoeren-8bit.toml"
-  dienstdatei hoeren-turbo "Hören Turbo" "Spracherkennung mit Whisper Large V3 Turbo (schneller, kleinerer Dekodierer)" 8789 hoeren 3 300 1 1 \
+  dienstdatei hoeren-turbo "Whisper Large V3 Turbo" "Spracherkennung mit Whisper Large V3 Turbo (schneller, kleinerer Dekodierer)" 8789 hoeren 3 300 1 1 \
     hoeren 'KLANGWERK_MODELL = "mlx-community/whisper-large-v3-turbo"'
   "$HIER/.venv/bin/python" -m klangwerk.selbstauskunft hoeren "$DIENSTE/klangwerk-hoeren-turbo.toml"
   # Sprachen nennt die Herkunft nicht einzeln (über 50); ohne Liste prüft die App nur die Form
-  dienstdatei hoeren-moss "Hören mit Sprechern" "Spracherkennung mit Sprechertrennung und Zeitmarken in einem Durchgang (MOSS-Transcribe-Diarize 0.9B)" 8787 hoeren 6 300 1 1 \
+  dienstdatei hoeren-moss "MOSS-Transcribe-Diarize 0.9B" "Spracherkennung mit Sprechertrennung und Zeitmarken in einem Durchgang (MOSS-Transcribe-Diarize 0.9B)" 8787 hoeren 6 300 1 1 \
     hoeren-moss 'PYTORCH_ENABLE_MPS_FALLBACK = "1"' .venv-moss
-  dienstdatei sprecher "Sprechermerkmal" "Stimmabdruck je Abschnitt (ECAPA), auf dem Prozessor" 8784 sprecher_erkennen 1
+  dienstdatei sprecher "Klangwerk Sprechermerkmal" "Stimmabdruck je Abschnitt (ECAPA), auf dem Prozessor" 8784 sprecher_erkennen 1
   # Sprechertrennung braucht KLANGWERK_HF_TOKEN unter [umgebung] ihrer Dienstdatei
-  dienstdatei trennen "Sprechertrennung" "Wer spricht wann: trennt die Sprecher einer Aufnahme nach Zeit (pyannote)" 8785 sprecher_trennen 2
-  dienstdatei ton "Ton" "Tonarbeit der Apps ohne Modell: wandeln, messen, blenden, legen (ffmpeg)" 8786 ton 1 30 4
+  dienstdatei trennen "Klangwerk Sprechertrennung" "Wer spricht wann: trennt die Sprecher einer Aufnahme nach Zeit (pyannote)" 8785 sprecher_trennen 2
+  dienstdatei ton "Klangwerk Ton" "Tonarbeit der Apps ohne Modell: wandeln, messen, blenden, legen (ffmpeg)" 8786 ton 1 30 4
 else
   echo "Kein Maschinenraum unter $DIENSTE; Dienste von Hand starten: $HIER/.venv/bin/klangwerk <dienst>"
 fi

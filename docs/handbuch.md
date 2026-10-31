@@ -11,7 +11,7 @@ sicherung:
 schluessel_orte:
   - "Mac: `KLANGWERK_HF_TOKEN` unter `[umgebung]` in `~/Maschinenraum/dienste/klangwerk-trennen.toml` (Zugang für das gesperrte Modell der Sprechertrennung)"
 einrichten: einrichten.sh
-stand: b237122
+stand: ce36ba4
 ---
 
 # Klangwerk
