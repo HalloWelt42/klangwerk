@@ -19,6 +19,8 @@ echo "Umgebung bereit: $HIER/.venv"
 "$HIER/.venv-moss/bin/pip" install --quiet -c "$HIER/einschraenkungen-moss.txt" -e "$HIER[moss,test]"
 echo "Umgebung bereit: $HIER/.venv-moss"
 
+# Als Name trägt jede Datei den echten Modellnamen (der Tondienst ohne Modell seine Aufgabe); die Aufgabe
+# (Spracherkennung, Sprachausgabe ...) zeigt der Maschinenraum aus der Fähigkeit dahinter, sie gehört nicht in den Namen.
 # Varianten: [modul] Python-Modul des Dienstes (Vorgabe die Kennung), [umgebung] eine weitere Zeile unter [umgebung],
 # [venv] Umgebung (Vorgabe .venv)
 dienstdatei() {   # kennung name beschreibung port faehigkeiten (mit Leerzeichen getrennt) speicher_gb [startzeit_s] [plaetze] [instanzen] [modul] [umgebung] [venv]
@@ -48,9 +50,9 @@ EOF
 }
 
 if [ -d "$DIENSTE" ]; then
-  dienstdatei sprechen "Klangwerk Sprechen" "Sprachsynthese mit Qwen3-TTS CustomVoice (9 Stimmen)" 8781 stimme 3
-  dienstdatei klonen "Klangwerk Stimmklon" "Stimme aus einer Referenz klonen, Qwen3-TTS Base" 8782 stimme_klonen 6
-  dienstdatei hoeren "Klangwerk Hören" "Spracherkennung mit Whisper Large V3" 8783 hoeren 4 300 1 2
+  dienstdatei sprechen "Qwen3-TTS 1.7B CustomVoice" "Sprachsynthese mit Qwen3-TTS CustomVoice (9 Stimmen)" 8781 stimme 3
+  dienstdatei klonen "Qwen3-TTS 1.7B Base" "Stimme aus einer Referenz klonen, Qwen3-TTS Base" 8782 stimme_klonen 6
+  dienstdatei hoeren "Whisper Large V3" "Spracherkennung mit Whisper Large V3" 8783 hoeren 4 300 1 2
   "$HIER/.venv/bin/python" -m klangwerk.selbstauskunft hoeren "$DIENSTE/klangwerk-hoeren.toml"   # Sprachen des Modells
   # Varianten des Hörens: weitere Dienste mit eigenem Modell, für die Apps je Auftrag wählbar
   dienstdatei hoeren-8bit "Whisper Large V3 (8 Bit)" "Spracherkennung mit Whisper Large V3 in 8 Bit" 8788 hoeren 3 300 1 1 \
@@ -64,10 +66,10 @@ if [ -d "$DIENSTE" ]; then
   dienstdatei hoeren-moss "MOSS-Transcribe-Diarize 0.9B" "Spracherkennung mit Sprechertrennung und Zeitmarken (MOSS-Transcribe-Diarize 0.9B über MLX, in Abschnitten an Sprechpausen)" 8787 "hoeren sprecher_trennen" 5 300 1 1 \
     hoeren-moss 'KLANGWERK_ABSCHNITT_S = "30"
 KLANGWERK_ABSCHNITT_HOECHSTENS_S = "240"' .venv-moss
-  dienstdatei sprecher "Klangwerk Sprechermerkmal" "Stimmabdruck je Abschnitt (ECAPA), auf dem Prozessor" 8784 sprecher_erkennen 1
+  dienstdatei sprecher "ECAPA-TDNN" "Stimmabdruck je Abschnitt (ECAPA), auf dem Prozessor" 8784 sprecher_erkennen 1
   # Sprechertrennung braucht KLANGWERK_HF_TOKEN unter [umgebung] ihrer Dienstdatei
   dienstdatei trennen "pyannote speaker-diarization 3.1" "Wer spricht wann: trennt die Sprecher einer Aufnahme nach Zeit (pyannote)" 8785 sprecher_trennen 2
-  dienstdatei ton "Klangwerk Ton" "Tonarbeit der Apps ohne Modell: wandeln, messen, blenden, legen (ffmpeg)" 8786 ton 1 30 4
+  dienstdatei ton "Tonbearbeitung" "Tonarbeit der Apps ohne Modell: wandeln, messen, blenden, legen (ffmpeg)" 8786 ton 1 30 4
 else
   echo "Kein Maschinenraum unter $DIENSTE; Dienste von Hand starten: $HIER/.venv/bin/klangwerk <dienst>"
 fi

@@ -11,7 +11,7 @@ sicherung:
 schluessel_orte:
   - "Mac: `KLANGWERK_HF_TOKEN` unter `[umgebung]` in `~/Maschinenraum/dienste/klangwerk-trennen.toml` (Zugang für das gesperrte Modell der Sprechertrennung)"
 einrichten: einrichten.sh
-stand: af40691
+stand: 479be8f
 ---
 
 # Klangwerk
@@ -33,6 +33,12 @@ Modell, lädt es beim Start und gibt den Speicher beim Anhalten wieder frei. So 
 | sprecher | sprecher_erkennen | ECAPA, auf dem Prozessor |
 | trennen | sprecher_trennen | pyannote 3.1 (braucht einen Zugang) |
 | ton | ton | ohne Modell: ffmpeg, die Tonarbeit der Apps (wandeln, messen, blenden, legen) |
+
+Sichtbar heißen die Dienste nach ihrem Modell: der `name` der Dienstdatei ist der echte Modellname, etwa "Whisper Large
+V3", "Qwen3-TTS 1.7B Base", "ECAPA-TDNN" oder "pyannote speaker-diarization 3.1"; der Tondienst ohne Modell heißt nach
+seiner Aufgabe "Tonbearbeitung". Maschinenraum, Leitstelle und die Apps setzen die Aufgabe aus der Fähigkeit klein
+dahinter ("Whisper Large V3 · Spracherkennung"). Kennungen wie `klangwerk-hoeren` bleiben, gespeicherte Auswahlen der
+Apps gelten also weiter.
 
 Die Ports stehen unten im Block "Auf einen Blick" (aus den Dienstdateien). Ohne Klangwerk sprechen und hören
 [[Vertonung]] und [[Transkription]] nicht, und die Apps können keinen Ton bearbeiten.
