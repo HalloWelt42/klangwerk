@@ -26,7 +26,7 @@ Webapps (Stellwerk)  ->  Leitstelle  ->  Maschinenraum  ->  Klangwerk sprechen, 
 | `hoeren` | 8783 | hoeren | Whisper Large V3, Silero für Sprachpausen | Grafik (MLX) |
 | `hoeren-8bit` | 8788 | hoeren | Whisper Large V3 in 8 Bit (Dienst `hoeren` mit `KLANGWERK_MODELL`) | Grafik (MLX) |
 | `hoeren-turbo` | 8789 | hoeren | Whisper Large V3 Turbo (Dienst `hoeren` mit `KLANGWERK_MODELL`) | Grafik (MLX) |
-| `hoeren-moss` | 8787 | hoeren | MOSS-Transcribe-Diarize 0.9B in bfloat16: Text, Zeitmarken und Sprecher, in Abschnitten an Sprechpausen, eigene Umgebung `.venv-moss` | Grafik (MLX) |
+| `hoeren-moss` | 8787 | hoeren, sprecher_trennen | MOSS-Transcribe-Diarize 0.9B in bfloat16: Text, Zeitmarken und Sprecher, in Abschnitten an Sprechpausen, eigene Umgebung `.venv-moss` | Grafik (MLX) |
 | `sprecher` | 8784 | sprecher_erkennen | ECAPA-TDNN (SpeechBrain) | Prozessor |
 | `trennen` | 8785 | sprecher_trennen | pyannote speaker-diarization 3.1 | Grafik (torch) |
 | `ton` | 8786 | ton | ohne Modell: ffmpeg und numpy (Rechnung und Routen aus `appkern.ton`) | Prozessor |
@@ -58,7 +58,7 @@ gestoert).
 | sprechen | `POST /v1/audio/speech` (übliches Format, Antwort WAV); `POST /tts` (JSON, Datei unter `GET /tts/audio/<datei>`); `GET /tts/voices` |
 | klonen | `POST /tts/clone` (Formular: `text`, `ref_audio`, `ref_text`, `language`, `speed`); `GET /tts/audio/<datei>` |
 | hoeren | `POST /v1/audio/transcriptions` (`json`, `text`, `verbose_json`); `POST /stt` (Segmente mit Wortzeiten); `POST /stt/stream` (Ereignisstrom je Segment); alle nehmen einen Hinweis `prompt` (bis 1000 Zeichen, etwa ein Satz in sauberer Schreibweise und Fachwörter), den jedes Fenster von höchstens 28 s an Sprachpausen bekommt, ohne Bezug auf den vorigen Text |
-| hoeren-moss | wie hoeren `POST /stt` und `POST /v1/audio/transcriptions`, ohne Strom; jedes Segment nennt `speaker` (S01, S02, ...), `speakers` zählt sie auf, `words` bleibt leer (nur Beitragszeiten), `speaker_sicher` sagt, ob die Zuordnung über Abschnitte sicher ist; `abschnitte` nennt Plan und Messwerte je Abschnitt, `warnungen` Notschnitte und Formatfehler; der Hinweis `prompt` geht als Hotwords hinter die Anweisung des Modells; `abschnitt_s` (15 bis 240) wählt die Obergrenze je Auftrag |
+| hoeren-moss | wie trennen `POST /speaker/diarize` (Sprecherzeiten `turns`, mit `num_speakers` werden die ähnlichsten Stimmen zusammengelegt), so nimmt eine App die Sprecher von MOSS zum Text eines anderen Hördienstes; wie hoeren `POST /stt` und `POST /v1/audio/transcriptions`, ohne Strom; jedes Segment nennt `speaker` (S01, S02, ...), `speakers` zählt sie auf, `words` bleibt leer (nur Beitragszeiten), `speaker_sicher` sagt, ob die Zuordnung über Abschnitte sicher ist; `abschnitte` nennt Plan und Messwerte je Abschnitt, `warnungen` Notschnitte und Formatfehler; der Hinweis `prompt` geht als Hotwords hinter die Anweisung des Modells; `abschnitt_s` (15 bis 240) wählt die Obergrenze je Auftrag |
 | sprecher | `POST /speaker/embed` (Datei und `segments` als JSON-Liste von start, end; Abdruck mit 192 Werten oder null unter 1 s) |
 | trennen | `POST /speaker/diarize` (Datei, optional `num_speakers`, `hf_token`); Antwort `turns` mit start, end, speaker |
 | ton | `POST /ton/aufbereiten`, `/ton/blenden`, `/ton/legen` (Dateien und `auftrag` als JSON, Modelle in `appkern.ton`); erzeugte Dateien einmal abholen mit `GET /ton/ergebnis/<name>`. Alle Tonarbeit der Apps läuft hier, der Pi rechnet nicht |

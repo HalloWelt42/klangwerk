@@ -183,3 +183,32 @@ def test_abschnittslaenge_aus_der_dienstdatei(tmp_path: Path):
         assert c.post("/stt", files={"file": ("a.wav", wav_bytes(), "audio/wav")}, data={"abschnitt_s": "120"}).status_code == 400
         c.post("/stt", files={"file": ("a.wav", wav_bytes(), "audio/wav")}, data={"abschnitt_s": "30"})
         assert m.aufrufe[-1]["abschnitt_s"] == 30.0
+
+
+def test_sprechertrennung_wie_der_dienst_trennen(tmp_path: Path):
+    # HELF-90: derselbe Dienst liefert Sprecherzeiten über /speaker/diarize, damit eine App sie zum Text eines anderen
+    # Hördienstes nehmen kann
+    m = ScheinMotor()
+    with TestClient(hoeren_moss.erstellen(einstellungen(tmp_path), m)) as c:
+        bereit(c)
+        r = c.post("/speaker/diarize", files={"file": ("a.wav", wav_bytes(), "audio/wav")}, data={"hf_token": "egal"})
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["turns"] == [{"start": 0.48, "end": 4.0, "speaker": "S01"}, {"start": 4.2, "end": 7.9, "speaker": "S02"}]
+        assert d["speakers"] == ["S01", "S02"] and d["model"] == "MOSS-Transcribe-Diarize 0.9B"
+        assert m.aufrufe[-1]["hinweis"] == "" and m.aufrufe[-1]["abschnitt_s"] == hoeren_moss.ABSCHNITT_VORGABE_S
+        assert not Path(m.aufrufe[-1]["pfad"]).exists()
+        c.post("/speaker/diarize", files={"file": ("a.wav", wav_bytes(), "audio/wav")}, data={"language": "german"})
+        assert m.aufrufe[-1]["sprache"] == "de"
+
+
+def test_bekannte_sprecherzahl_legt_die_aehnlichsten_zusammen():
+    buch = Sprecherbuch(0.5)
+    buch.summen = {"S01": stimme(1), "S02": stimme(2), "S03": stimme(1) * 0.9 + stimme(3) * 0.1}
+    beitraege = [Beitrag(0, 1, "S01", "a"), Beitrag(1, 2, "S02", "b"), Beitrag(2, 3, "S03", "c"), Beitrag(3, 4, None, "d")]
+    aus = hoeren_moss.auf_anzahl(beitraege, buch, 2)
+    assert [b.sprecher for b in aus] == ["S01", "S02", "S01", None]
+    assert [b.sprecher for b in hoeren_moss.auf_anzahl(aus, buch, 1)] == ["S01", "S01", "S01", None]
+    assert hoeren_moss.auf_anzahl(beitraege, Sprecherbuch(0.5), 1) == beitraege        # ohne Abdrücke bleibt es
+    assert hoeren_moss.wechsel(aus) == [{"start": 0, "end": 1, "speaker": "S01"}, {"start": 1, "end": 2, "speaker": "S02"},
+                                         {"start": 2, "end": 3, "speaker": "S01"}]

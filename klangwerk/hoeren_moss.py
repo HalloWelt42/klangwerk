@@ -27,6 +27,12 @@ wiederholt; bleibt der Fehler, kommt sein Text ohne Sprecher und mit Warnung (`w
 
 Schnittstelle wie der Dienst hoeren (`POST /stt`, `POST /v1/audio/transcriptions`); dazu `abschnitte` (Plan und
 Messwerte je Abschnitt) und `warnungen`.
+
+Sprechertrennung (HELF-90): Derselbe Dienst bietet `POST /speaker/diarize` wie der Dienst trennen (pyannote), damit eine
+App die Sprecher von MOSS zu einem Text eines anderen Hördienstes (etwa Whisper) nehmen kann, ohne Sonderweg: sie wählt
+nur den Dienst der Sprechertrennung. Gehört wird dabei genauso (Abschnitte, Vorlauf, Stimmabdruck), geliefert werden nur
+die Sprecherzeiten `turns`. Mit `num_speakers` werden die ähnlichsten Sprecher zusammengelegt, bis es so viele sind
+(mehr als gehört entstehen nie).
 """
 
 from __future__ import annotations
@@ -185,6 +191,29 @@ class Sprecherbuch:
         return aus
 
 
+def auf_anzahl(beitraege: list[Beitrag], buch: Sprecherbuch, anzahl: int) -> list[Beitrag]:
+    """Legt die Sprecher mit der ähnlichsten Stimme zusammen, bis höchstens `anzahl` bleiben (bekannte Sprecherzahl).
+    Der frühere Sprecher behält seine Kennung; Sprecher ohne Stimmabdruck bleiben, wie sie sind."""
+    namen = {b.sprecher for b in beitraege if b.sprecher}
+    umbenannt: dict[str, str] = {}
+    while len(namen) > anzahl:
+        mit_abdruck = sorted(n for n in namen if n in buch.summen)
+        paare = [(buch.aehnlichkeit(buch.summen[b], a), a, b) for i, a in enumerate(mit_abdruck) for b in mit_abdruck[i + 1:]]
+        if not paare:
+            break
+        _, bleibt, geht = max(paare)
+        buch.summen[bleibt] = buch.summen[bleibt] + buch.summen.pop(geht)
+        umbenannt = {k: (bleibt if v == geht else v) for k, v in umbenannt.items()} | {geht: bleibt}
+        namen.discard(geht)
+    return [replace(b, sprecher=umbenannt.get(b.sprecher, b.sprecher)) if b.sprecher else b for b in beitraege]
+
+
+def wechsel(beitraege: list[Beitrag]) -> list[dict]:
+    """Sprecherzeiten im Format des Dienstes trennen (start, end, speaker), nur Beiträge mit Sprecher."""
+    return [{"start": round(max(0.0, b.start), 3), "end": round(max(b.ende, b.start, 0.0), 3), "speaker": b.sprecher}
+            for b in sorted(beitraege, key=lambda x: (x.start, x.ende)) if b.sprecher and b.text.strip()]
+
+
 def kennungsmerkmale(beitraege: list[Beitrag], abdruecke: Callable[[list[dict]], list[list[float] | None]]
                      ) -> dict[str, np.ndarray | None]:
     """Je Kennung eines Abschnitts ein Stimmabdruck: Mittel über ihre längsten Beiträge ab 1 s; ohne solche None."""
@@ -281,6 +310,7 @@ class Bericht:
     beitraege: list[Beitrag]
     abschnitte: list[dict] = field(default_factory=list)
     warnungen: list[str] = field(default_factory=list)
+    buch: Sprecherbuch | None = None              # Stimmabdrücke der Sprecher (für eine bekannte Sprecherzahl)
 
 
 class Motor:
@@ -333,7 +363,7 @@ def zusammenfuehren(ton: np.ndarray, plan: list[Abschnitt], sprache_stellen: lis
                     abdruecke: Callable[[list[dict]], list[list[float] | None]], sprache: str | None,
                     buch: Sprecherbuch) -> Bericht:
     """Hört Abschnitt für Abschnitt (mit Vorlauf) und führt nach Zeit und Sprechern zusammen (siehe Modultext)."""
-    bericht = Bericht([])
+    bericht = Bericht([], buch=buch)
     vorher: Abschnitt | None = None
     for nr, a in enumerate(plan, 1):
         letzter = bericht.beitraege[-1] if bericht.beitraege else None
@@ -415,6 +445,24 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
             return await ganz(pfad, language, hinweis, abschnitt_s)
         finally:
             wegraeumen(pfad)
+
+    @app.post("/speaker/diarize")
+    async def trennen(file: UploadFile = File(...), num_speakers: int | None = Form(None, ge=1, le=20),
+                      language: str | None = Form(None), abschnitt_s: float | None = Form(None)):
+        """Wer spricht wann, wie der Dienst trennen: `turns` mit start, end, speaker (S01, S02, ...)."""
+        abschnitt_s = abschnitt_pruefen(abschnitt_s, hoechstens_s)
+        pfad = await datei_annehmen(file, e)
+        try:
+            bericht = await rechner.rechnen(motor.erkennen, str(pfad), "", sprachcode(language),
+                                            abschnitt_s or vorgabe_s, e.sprecher_schwelle)
+        finally:
+            wegraeumen(pfad)
+        beitraege = bericht.beitraege
+        if num_speakers and bericht.buch is not None:
+            beitraege = auf_anzahl(beitraege, bericht.buch, num_speakers)
+        turns = wechsel(beitraege)
+        return {"turns": turns, "speakers": sorted({t["speaker"] for t in turns}), "model": name,
+                "abschnitte": bericht.abschnitte, "warnungen": bericht.warnungen}
 
     @app.post("/v1/audio/transcriptions")
     async def transkription(file: UploadFile = File(...), model: str | None = Form(None), language: str | None = Form(None),
