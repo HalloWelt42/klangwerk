@@ -13,7 +13,7 @@ DIENSTE="${MASCHINENRAUM_ORDNER:-$HOME/Maschinenraum}/dienste"
 "$HIER/.venv/bin/pip" install --quiet --upgrade pip
 "$HIER/.venv/bin/pip" install --quiet -c "$HIER/einschraenkungen.txt" -e "$HIER[mlx,torch,ton]"
 echo "Umgebung bereit: $HIER/.venv"
-# Hören mit MOSS braucht neuere transformers als die übrigen Dienste: eigene Umgebung
+# Hören mit MOSS über MLX braucht mlx-audio ab 0.6, die übrigen Dienste bleiben bei 0.4: eigene Umgebung
 [ -d "$HIER/.venv-moss" ] || "$PYTHON" -m venv "$HIER/.venv-moss"
 "$HIER/.venv-moss/bin/pip" install --quiet --upgrade pip
 "$HIER/.venv-moss/bin/pip" install --quiet -c "$HIER/einschraenkungen-moss.txt" -e "$HIER[moss,test]"
@@ -59,8 +59,8 @@ if [ -d "$DIENSTE" ]; then
     hoeren 'KLANGWERK_MODELL = "mlx-community/whisper-large-v3-turbo"'
   "$HIER/.venv/bin/python" -m klangwerk.selbstauskunft hoeren "$DIENSTE/klangwerk-hoeren-turbo.toml"
   # Sprachen nennt die Herkunft nicht einzeln (über 50); ohne Liste prüft die App nur die Form
-  dienstdatei hoeren-moss "MOSS-Transcribe-Diarize 0.9B" "Spracherkennung mit Sprechertrennung und Zeitmarken in einem Durchgang (MOSS-Transcribe-Diarize 0.9B)" 8787 hoeren 6 300 1 1 \
-    hoeren-moss 'PYTORCH_ENABLE_MPS_FALLBACK = "1"' .venv-moss
+  dienstdatei hoeren-moss "MOSS-Transcribe-Diarize 0.9B" "Spracherkennung mit Sprechertrennung und Zeitmarken (MOSS-Transcribe-Diarize 0.9B über MLX, in Abschnitten an Sprechpausen)" 8787 hoeren 4 300 1 1 \
+    hoeren-moss 'KLANGWERK_ABSCHNITT_S = "60"' .venv-moss
   dienstdatei sprecher "Klangwerk Sprechermerkmal" "Stimmabdruck je Abschnitt (ECAPA), auf dem Prozessor" 8784 sprecher_erkennen 1
   # Sprechertrennung braucht KLANGWERK_HF_TOKEN unter [umgebung] ihrer Dienstdatei
   dienstdatei trennen "Klangwerk Sprechertrennung" "Wer spricht wann: trennt die Sprecher einer Aufnahme nach Zeit (pyannote)" 8785 sprecher_trennen 2

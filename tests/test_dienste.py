@@ -158,9 +158,10 @@ class ScheinHoeren:
     def laden(self):
         return True
 
-    def erkennen(self, pfad, sprache, hinweis=""):
+    def erkennen(self, pfad, sprache, hinweis="", abschnitt_s=None):
         self.aufrufe.append(sprache)
         self.hinweise.append(hinweis)
+        self.abschnitt_s = abschnitt_s
         return ROH
 
     def abschnitte(self, pfad, hoechstens_s=15):
@@ -182,9 +183,9 @@ def test_segmente_ohne_wiederholten_hinweis():
 
 
 def test_fenster_und_verschieben():
-    assert hoeren.kuerzen({"start": 10.0, "end": 70.0}, 28) == [{"start": 10.0, "end": 30.0}, {"start": 30.0, "end": 50.0},
-                                                                {"start": 50.0, "end": 70.0}]
-    assert hoeren.kuerzen({"start": 0.0, "end": 5.0}, 28) == [{"start": 0.0, "end": 5.0}]
+    assert hoeren.fensterlaenge("", None) is None                  # ohne Hinweis hört Whisper die Datei selbst
+    assert hoeren.fensterlaenge("Qwen", None) == hoeren.FENSTER_S
+    assert hoeren.fensterlaenge("", 15) == 15 and hoeren.fensterlaenge("", 120) == hoeren.FENSTER_S   # Whisper: höchstens 28 s
     v = hoeren.verschieben([{"start": 1.0, "end": 2.0, "text": "a", "words": [{"word": "a", "start": 1.0, "end": 1.5}]}], 30.0)
     assert v[0]["start"] == 31.0 and v[0]["words"][0]["end"] == 31.5
 
@@ -201,6 +202,9 @@ def test_hoeren_gibt_hinweis_weiter(tmp_path: Path):
         assert m.hinweise[-1] == ""
         zu_lang = c.post("/stt", data={"prompt": "x" * 1001}, files={"file": ("a.wav", wav_bytes(), "audio/wav")})
         assert zu_lang.status_code == 400
+        c.post("/stt", data={"abschnitt_s": "15"}, files={"file": ("a.wav", wav_bytes(), "audio/wav")})
+        assert m.abschnitt_s == 15.0
+        assert c.post("/stt", data={"abschnitt_s": "2"}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).status_code == 400
 
 
 def test_hoeren(tmp_path: Path):

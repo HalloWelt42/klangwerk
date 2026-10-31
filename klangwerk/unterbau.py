@@ -43,7 +43,7 @@ if "/opt/homebrew/bin" not in os.environ.get("PATH", ""):
 class Einstellungen(BaseSettings):
     """Je Dienst über Umgebungsvariablen mit der Vorsilbe KLANGWERK_ (Dienstdatei im Maschinenraum)."""
 
-    model_config = SettingsConfigDict(env_prefix="KLANGWERK_", env_file=None)
+    model_config = SettingsConfigDict(env_prefix="KLANGWERK_", env_file=None, populate_by_name=True)
 
     adresse: str = Field(default="127.0.0.1", description="nur dieser Rechner; erreichbar ist der Dienst über die Leitstelle")
     modell: str | None = Field(default=None, description="Modell dieses Dienstes; leer: Vorgabe des Dienstes")
@@ -51,8 +51,24 @@ class Einstellungen(BaseSettings):
     hochladen_gb: float = Field(default=2.0, gt=0, description="größte angenommene Audiodatei")
     ergebnisse: Path = Field(default=Path(tempfile.gettempdir()) / "klangwerk", description="Ordner für erzeugte Audiodateien")
     hf_token: str | None = Field(default=None, description="Zugang für gesperrte Modelle (Sprechertrennung)")
-    genauigkeit: Literal["float32", "bfloat16", "float16"] = Field(
-        default="float32", description="Zahlen der Gewichte bei Modellen in torch auf der Grafik (Hören mit MOSS)")
+    speicher_grenze_gb: float | None = Field(
+        default=None, gt=0, validation_alias="MASCHINENRAUM_SPEICHER_GRENZE_GB",
+        description="harte Grenze des Maschinenraums für diesen Dienst (er beendet ihn darüber); MLX rechnet darunter")
+    speicher_grenze_anteil: float = Field(
+        default=0.9, gt=0, le=1, description="Anteil der Grenze, den MLX höchstens belegt: so scheitert eine zu große "
+                                             "Rechnung mit einer Meldung, bevor der Maschinenraum den Dienst beendet")
+    abschnitt_s: float | None = Field(
+        default=None, gt=0, description="Obergrenze der Abschnitte, die das Modell am Stück hört (geschnitten in "
+                                        "Sprechpausen); leer: Vorgabe des Dienstes")
+    abschnitt_hoechstens_s: float | None = Field(
+        default=None, gt=0, description="größte Abschnittslänge, die ein Auftrag wählen darf (die sichere Höchstlänge aus "
+                                        "der Messreihe, mit Abstand zur Speichergrenze); leer: Vorgabe des Dienstes")
+    sprecher_schwelle: float = Field(
+        default=0.5, gt=0, lt=1, description="Ähnlichkeit (Kosinus, ECAPA), ab der ein Sprecher eines Abschnitts als "
+                                             "derselbe wie ein früherer gilt (Hören mit Sprechern)")
+    genauigkeit: Literal["bfloat16", "float32"] = Field(
+        default="bfloat16", description="Zahlen der Gewichte (Hören mit MOSS): bfloat16 wie veröffentlicht; float32 nur "
+                                        "zum Vergleich (float16 läuft im Textteil Qwen3 über)")
 
 
 class Gesundheit(BaseModel):
@@ -80,6 +96,11 @@ class Rechner:
         try:
             import mlx.core as mx
             mx.set_cache_limit(int(self.einstellungen.mlx_zwischenspeicher_gb * 1024**3))
+            if self.einstellungen.speicher_grenze_gb:
+                grenze = self.einstellungen.speicher_grenze_gb * self.einstellungen.speicher_grenze_anteil
+                mx.set_memory_limit(int(grenze * 1024**3))
+                log.info("%s: MLX höchstens %.1f GB (Grenze des Maschinenraums %.1f GB)", self.dienst, grenze,
+                         self.einstellungen.speicher_grenze_gb)
         except Exception as f:                 # ohne MLX (Dienste auf dem Prozessor) gibt es nichts zu begrenzen
             log.debug("MLX-Zwischenspeicher nicht begrenzbar: %s", f)
 

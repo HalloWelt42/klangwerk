@@ -33,8 +33,11 @@ class Motor:
         return self.m
 
     def abdruecke(self, pfad: str, abschnitte: list[dict]) -> list[list[float] | None]:
+        return self.abdruecke_ton(mono_16k(pfad), abschnitte)
+
+    def abdruecke_ton(self, wav: np.ndarray, abschnitte: list[dict]) -> list[list[float] | None]:
+        """Ein Abdruck je Abschnitt eines Tons (16 kHz mono); auch für Hördienste, die Sprecher über Abschnitte führen."""
         import torch
-        wav = mono_16k(pfad)
         aus: list[list[float] | None] = []
         for s in abschnitte:
             von, bis = max(0.0, float(s.get("start", 0.0))), float(s.get("end", 0.0))

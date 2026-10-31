@@ -11,7 +11,7 @@ sicherung:
 schluessel_orte:
   - "Mac: `KLANGWERK_HF_TOKEN` unter `[umgebung]` in `~/Maschinenraum/dienste/klangwerk-trennen.toml` (Zugang für das gesperrte Modell der Sprechertrennung)"
 einrichten: einrichten.sh
-stand: ce36ba4
+stand: 5587828
 ---
 
 # Klangwerk
@@ -29,7 +29,7 @@ Modell, lädt es beim Start und gibt den Speicher beim Anhalten wieder frei. So 
 | hoeren | hoeren | Whisper Large V3 (MLX), dazu Silero für Sprechpausen; bis zwei Instanzen |
 | hoeren-8bit | hoeren | Whisper Large V3 in 8 Bit (MLX), Variante von Hören |
 | hoeren-turbo | hoeren | Whisper Large V3 Turbo (MLX), Variante von Hören |
-| hoeren-moss | hoeren | MOSS-Transcribe-Diarize 0.9B (torch): Text mit Sprechern in einem Durchgang, eigene Umgebung `.venv-moss` |
+| hoeren-moss | hoeren | MOSS-Transcribe-Diarize 0.9B (MLX, bfloat16): Text mit Sprechern, in Abschnitten an Sprechpausen, eigene Umgebung `.venv-moss` |
 | sprecher | sprecher_erkennen | ECAPA, auf dem Prozessor |
 | trennen | sprecher_trennen | pyannote 3.1 (braucht einen Zugang) |
 | ton | ton | ohne Modell: ffmpeg, die Tonarbeit der Apps (wandeln, messen, blenden, legen) |
@@ -59,10 +59,12 @@ cd {{ordner}} && ./einrichten.sh
 ```
 
 `./einrichten.sh` ruft `./installieren.sh`: `.venv` im Klon mit den Ständen aus `einschraenkungen.txt` und `.venv-moss`
-für Hören mit MOSS (Stände aus `einschraenkungen-moss.txt`), dann je Dienst
+für Hören mit MOSS über MLX (mlx-audio ab 0.6, Stände aus `einschraenkungen-moss.txt`), dann je Dienst
 eine Datei `~/Maschinenraum/dienste/klangwerk-<dienst>.toml`, aber nur, wenn es sie noch nicht gibt (Änderungen von
 Hand bleiben). In die Datei von Hören kommen dazu die Sprachen des Modells (`sprachen`, aus seinem Tokenizer), die
-über die Leitstelle als Steckbrief an die Apps gehen. Gestartet wird nichts.
+über die Leitstelle als Steckbrief an die Apps gehen. Die Datei von Hören mit MOSS nennt die Abschnittslänge
+(`KLANGWERK_ABSCHNITT_S`); die sichere Höchstlänge je Auftrag steht nach der Messreihe als
+`KLANGWERK_ABSCHNITT_HOECHSTENS_S` darin. Gestartet wird nichts.
 
 Probe: `ls ~/Maschinenraum/dienste/klangwerk-*.toml | wc -l` meldet 9, und der Maschinenraum zeigt die neun Dienste
 unter Dienste.

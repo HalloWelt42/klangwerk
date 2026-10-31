@@ -33,6 +33,8 @@ from typing import Any
 from fastapi import File, Form, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
+from .abschnitte import Sprachpausen
+from .stimmdaten import RATE, mono_16k
 from .unterbau import Einstellungen, Rechner, anwendung, datei_annehmen, wegraeumen
 
 log = logging.getLogger("klangwerk.hoeren")
@@ -138,12 +140,13 @@ def verschieben(segmente: list, versatz: float) -> list[dict]:
     return aus
 
 
-def kuerzen(abschnitt: dict, hoechstens_s: float) -> list[dict]:
-    """Ein Abschnitt ohne Pause über `hoechstens_s` in gleich lange Teile darunter."""
-    laenge = abschnitt["end"] - abschnitt["start"]
-    teile = max(1, -int(-laenge // hoechstens_s))
-    schritt = laenge / teile
-    return [{"start": abschnitt["start"] + i * schritt, "end": abschnitt["start"] + (i + 1) * schritt} for i in range(teile)]
+def abschnitt_pruefen(abschnitt_s: float | None, obergrenze_s: float = 3600.0) -> float | None:
+    """Gewünschte Abschnittslänge (Formularwert `abschnitt_s`): leer heißt Vorgabe des Dienstes."""
+    if abschnitt_s is None or abschnitt_s == 0:
+        return None
+    if not 5 <= abschnitt_s <= obergrenze_s:
+        raise HTTPException(400, f"abschnitt_s: 5 bis {obergrenze_s:g} Sekunden")
+    return float(abschnitt_s)
 
 
 def hinweis_pruefen(hinweis: str | None) -> str:
@@ -153,68 +156,49 @@ def hinweis_pruefen(hinweis: str | None) -> str:
     return hinweis
 
 
+def fensterlaenge(hinweis: str, abschnitt_s: float | None) -> float | None:
+    """Länge der eigenen Fenster: mit Hinweis oder gewünschter Abschnittslänge höchstens 28 s (Whisper hört 30 s am
+    Stück), sonst keine eigenen Fenster (None: Whisper hört die ganze Datei selbst)."""
+    if abschnitt_s:
+        return min(float(abschnitt_s), FENSTER_S)
+    return FENSTER_S if hinweis else None
+
+
 class Motor:
     def __init__(self, modell: str) -> None:
         self.modell = modell
-        self.vad: Any = None
+        self.pausen = Sprachpausen()
 
     def laden(self) -> Any:
         import mlx.core as mx
         from mlx_whisper.transcribe import ModelHolder
         ModelHolder.get_model(self.modell, mx.float16)      # einmal laden; transcribe nutzt dieses Modell
-        try:
-            from silero_vad import load_silero_vad
-            self.vad = load_silero_vad()
-        except Exception as f:                               # ohne Sprachpausen: feste Abschnitte
-            log.warning("Sprachpausenerkennung nicht verfügbar: %s", f)
+        self.pausen.laden()                                  # ohne Sprachpausen kein Dienst: nie feste Schnitte
         return True
 
-    def erkennen(self, pfad: str, sprache: str | None, hinweis: str = "") -> dict:
-        """Ganze Datei. Mit Hinweis in eigenen Fenstern (siehe oben), jedes mit dem Hinweis; Zeiten auf die Datei."""
+    def erkennen(self, pfad: str, sprache: str | None, hinweis: str = "", abschnitt_s: float | None = None) -> dict:
+        """Ganze Datei. Mit Hinweis oder gewünschter Abschnittslänge in eigenen Fenstern an Sprechpausen (siehe oben),
+        jedes mit dem Hinweis; Zeiten auf die Datei."""
         import mlx_whisper
         optionen = dict(path_or_hf_repo=self.modell, language=sprache, condition_on_previous_text=False,
                         no_speech_threshold=0.6, compression_ratio_threshold=2.4, word_timestamps=True, verbose=False)
-        if not hinweis:
-            return mlx_whisper.transcribe(pfad, **optionen)
-        from mlx_whisper.audio import SAMPLE_RATE, load_audio
-        ton = load_audio(pfad)
+        fenster_s = fensterlaenge(hinweis, abschnitt_s)
+        if fenster_s is None:
+            return {**mlx_whisper.transcribe(pfad, **optionen), "abschnitte": []}
+        ton = mono_16k(pfad)
         segmente, erkannt = [], None
-        for f in self.abschnitte(pfad, FENSTER_S):
-            stueck = ton[int(f["start"] * SAMPLE_RATE):int(f["end"] * SAMPLE_RATE)]
-            if len(stueck) < 0.3 * SAMPLE_RATE:
+        plan = self.pausen.abschnitte(ton, fenster_s)
+        for f in plan:
+            stueck = ton[int(f.start * RATE):int(f.ende * RATE)]
+            if len(stueck) < 0.3 * RATE:
                 continue
-            roh = mlx_whisper.transcribe(stueck, initial_prompt=hinweis, **optionen)
+            roh = mlx_whisper.transcribe(stueck, **({"initial_prompt": hinweis} if hinweis else {}), **optionen)
             erkannt = erkannt or roh.get("language")
-            segmente += verschieben(roh.get("segments", []), f["start"])
-        return {"segments": segmente, "language": erkannt or sprache}
+            segmente += verschieben(roh.get("segments", []), f.start)
+        return {"segments": segmente, "language": erkannt or sprache, "abschnitte": [f.als_dict() for f in plan]}
 
     def abschnitte(self, pfad: str, hoechstens_s: float = ABSCHNITT_HOECHSTENS_S) -> list[dict]:
-        """Sprachabschnitte über Silero, zu höchstens `hoechstens_s` zusammengefasst; ohne Silero feste Abschnitte."""
-        try:
-            from silero_vad import get_speech_timestamps, read_audio
-            if self.vad is None:
-                raise RuntimeError("keine Sprachpausenerkennung")
-            wav = read_audio(pfad, sampling_rate=16000)
-            stellen = get_speech_timestamps(wav, self.vad, sampling_rate=16000, min_silence_duration_ms=500, speech_pad_ms=100)
-            if not stellen:
-                return [{"start": 0.0, "end": dauer_s(pfad)}]
-            aus, von, bis = [], stellen[0]["start"] / 16000, stellen[0]["end"] / 16000
-            for s in stellen[1:]:
-                a, b = s["start"] / 16000, s["end"] / 16000
-                if b - von > hoechstens_s:
-                    aus.append({"start": von, "end": bis})
-                    von, bis = a, b
-                else:
-                    bis = b
-            aus.append({"start": von, "end": bis})
-            return [t for a in aus for t in kuerzen(a, hoechstens_s)]
-        except Exception as f:
-            log.warning("Sprachpausen nicht erkannt, feste Abschnitte: %s", f)
-            gesamt, aus, ab = dauer_s(pfad), [], 0.0
-            while ab < gesamt:
-                aus.append({"start": ab, "end": min(ab + hoechstens_s, gesamt)})
-                ab += hoechstens_s
-            return aus
+        return [{"start": f.start, "end": f.ende} for f in self.pausen.abschnitte(mono_16k(pfad), hoechstens_s)]
 
 
 def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = None):
@@ -225,19 +209,20 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
     rechner = Rechner("hoeren", modell, e)
     app = anwendung("hoeren", rechner, motor.laden, "Hören")
 
-    async def ganz(pfad: Path, sprache: str, hinweis: str = "") -> dict:
-        roh = await rechner.rechnen(motor.erkennen, str(pfad), sprachcode(sprache), hinweis)
+    async def ganz(pfad: Path, sprache: str, hinweis: str = "", abschnitt_s: float | None = None) -> dict:
+        roh = await rechner.rechnen(motor.erkennen, str(pfad), sprachcode(sprache), hinweis, abschnitt_s)
         segmente = segmente_bereinigen(roh.get("segments", []), hinweis)
         return {"text": " ".join(s["text"].strip() for s in segmente), "segments": segmente, "speakers": [],
-                "language": roh.get("language", sprache), "model": name}
+                "language": roh.get("language", sprache), "model": name, "abschnitte": roh.get("abschnitte", [])}
 
     @app.post("/stt")
     async def stt(file: UploadFile = File(...), language: str = Form("german"), diarize: bool = Form(True),
-                  prompt: str = Form("")):
+                  prompt: str = Form(""), abschnitt_s: float | None = Form(None)):
         hinweis = hinweis_pruefen(prompt)
+        abschnitt_s = abschnitt_pruefen(abschnitt_s)
         pfad = await datei_annehmen(file, e)
         try:
-            return await ganz(pfad, language, hinweis)
+            return await ganz(pfad, language, hinweis, abschnitt_s)
         finally:
             wegraeumen(pfad)
 
