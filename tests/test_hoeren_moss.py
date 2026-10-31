@@ -85,11 +85,18 @@ def test_zwei_kennungen_eines_abschnitts_nie_derselbe_sprecher():
     assert z["S01"].sprecher == "S01" and z["S02"].sprecher == "S02" and z["S02"].wie == "neu"
 
 
-def test_naht_zieht_ueber_den_schnitt_gezogenen_beitrag_ganz():
-    n = naht([Beitrag(50.0, 59.0, "S01", "Vorlauf"), Beitrag(50.0, 66.0, "S01", "Vorlauf und weiter"),
-              Beitrag(60.2, 70.0, "S02", "Neu")], 60.0)
-    assert [x.text for x in n.doppelt] == ["Vorlauf"] and [x.text for x in n.neu] == ["Vorlauf und weiter", "Neu"]
-    assert n.ersetzt_vorige == 1
+def test_naht_kuerzt_den_doppelt_gehoerten_anfang():
+    # Befund 31.10.2026 (15-s-Abschnitte): das Modell beginnt mitten im Vorlauf und zieht ihn mit dem neuen Satz zusammen
+    vorher = "Und wenn das wieder geht, dann kann ich einfach vom Sofa aus mit dem Handy die Steckdose anmachen und dann geht der Fernseher automatisch an."
+    n = naht([Beitrag(236.0, 242.8, "S01", "Und wenn das wieder geht, dann kann ich die Steckdose"),
+              Beitrag(239.8, 254.4, "S01", "anmachen und dann geht der Fernseher automatisch an. Das wird wieder schön."),
+              Beitrag(254.6, 258.0, "S01", "Neu.")], 244.5, vorher)
+    assert [x.text for x in n.doppelt] == ["Und wenn das wieder geht, dann kann ich die Steckdose"]
+    assert [x.text for x in n.neu] == ["Das wird wieder schön.", "Neu."] and n.gekuerzt == 8
+    assert n.neu[0].start == 244.5
+    # ohne Wiederholung bleibt alles, ein einzelnes gleiches Wort gilt als Zufall
+    n = naht([Beitrag(60.2, 70.0, "S02", "an der Stelle geht es weiter")], 60.0, "geht automatisch an")
+    assert [x.text for x in n.neu] == ["an der Stelle geht es weiter"] and n.gekuerzt == 0
 
 
 def test_formatfehler_einmal_streng_wiederholt_sonst_warnung():

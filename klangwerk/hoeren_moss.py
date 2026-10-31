@@ -13,7 +13,8 @@ der Zwischenspeicher von MLX geleert; die Speichergrenze des Maschinenraums gilt
 Zusammenführen nach Zeit: Jeder Abschnitt ab dem zweiten beginnt mit dem letzten Beitrag des vorigen als Vorlauf
 (höchstens `VORLAUF_HOECHSTENS_S`, Beginn in einer Sprechpause). Aus einem Abschnitt zählen nur Beiträge, die nach
 seinem Schnitt beginnen; der Schnitt liegt in einer Pause, also reicht kein Beitrag über ihn. Den Vorlauf hört das
-Modell doppelt: seine Kennung im neuen Abschnitt ist die des Beitrags im alten (erstes Zeichen für die Sprecher).
+Modell doppelt: seine Kennung im neuen Abschnitt ist die des Beitrags im alten (erstes Zeichen für die Sprecher). Zieht
+das Modell den Vorlauf mit dem ersten neuen Satz zusammen, verliert dieser die Wörter, die das schon Gehörte wiederholen.
 
 Sprecher über Abschnitte: Die Kennungen des Modells gelten nur innerhalb eines Abschnitts. Zugeordnet wird je
 Abschnitt und Kennung, nicht je Beitrag: zuerst über den Vorlauf, sonst über den Stimmabdruck (ECAPA, Mittel über die
@@ -205,23 +206,47 @@ class Naht:
     """Ergebnis eines Abschnitts nach dem Zusammenführen an seinem Schnitt."""
     neu: list[Beitrag]
     doppelt: list[Beitrag]
-    ersetzt_vorige: int = 0           # Beiträge des vorigen Abschnitts, die ein über den Schnitt gezogener ersetzt
+    gekuerzt: int = 0                 # Wörter am Anfang des ersten neuen Beitrags, die schon gehört waren
 
 
-def naht(beitraege: list[Beitrag], schnitt: float) -> Naht:
-    """Teilt die Beiträge eines Abschnitts mit Vorlauf: vor dem Schnitt beginnende sind doppelt gehört (Vorlauf), nur
-    die danach zählen. Hat das Modell den Vorlauf mit dem ersten neuen Beitrag zusammengezogen (er reicht deutlich über
-    den Schnitt), zählt er ganz und ersetzt den Vorlauf im vorigen Abschnitt."""
-    neu, doppelt, ersetzt = [], [], 0
+NAHT_WOERTER = 40                     # so weit zurück wird ein doppelt gehörter Anfang gesucht
+NAHT_MINDESTENS = 2                   # erst ab so vielen gleichen Wörtern gilt ein Anfang als doppelt
+
+
+def _wort(w: str) -> str:
+    return "".join(z for z in w.lower() if z.isalnum())
+
+
+def doppelte_woerter(vorher: str, text: str) -> int:
+    """Wie viele Wörter am Anfang von `text` das Ende von `vorher` wiederholen (gleiche Wörter ohne Groß und Klein und
+    Satzzeichen); unter `NAHT_MINDESTENS` gilt es als Zufall."""
+    alt = [w for w in (_wort(x) for x in vorher.split()) if w][-NAHT_WOERTER:]
+    neu = [_wort(x) for x in text.split()]
+    for k in range(min(len(alt), len(neu)), NAHT_MINDESTENS - 1, -1):
+        if alt[-k:] == neu[:k]:
+            return k
+    return 0
+
+
+def naht(beitraege: list[Beitrag], schnitt: float, vorher: str = "") -> Naht:
+    """Teilt die Beiträge eines Abschnitts mit Vorlauf: ganz vor dem Schnitt liegende sind doppelt gehört (Vorlauf), nur
+    die übrigen zählen. Das Modell zieht den Vorlauf aber gern mit dem ersten neuen Satz zusammen oder beginnt mitten im
+    Vorlauf (gemessen 31.10.2026: ganze Sätze doppelt bei 15-s-Abschnitten); darum verliert der erste zählende Beitrag
+    die Wörter am Anfang, die das Ende des schon Gehörten (`vorher`) wiederholen."""
+    neu, doppelt = [], []
     for b in beitraege:
-        if b.start >= schnitt - NAHT_S:
-            neu.append(b)
-        elif b.ende > schnitt + 2 * NAHT_S:
-            neu.append(b)
-            ersetzt += 1
-        else:
+        if b.start < schnitt - NAHT_S and b.ende <= schnitt + 2 * NAHT_S:
             doppelt.append(b)
-    return Naht(neu, doppelt, ersetzt)
+        else:
+            neu.append(b)
+    gekuerzt = 0
+    if neu and vorher:
+        erster = neu[0]
+        gekuerzt = doppelte_woerter(vorher, erster.text)
+        if gekuerzt:
+            rest = " ".join(erster.text.split()[gekuerzt:])
+            neu = ([replace(erster, start=max(erster.start, min(schnitt, erster.ende)), text=rest)] if rest else []) + neu[1:]
+    return Naht(neu, doppelt, gekuerzt)
 
 
 def vorlauf_kennung(doppelt: list[Beitrag], vorlauf: Beitrag) -> str | None:
@@ -327,9 +352,7 @@ def zusammenfuehren(ton: np.ndarray, plan: list[Abschnitt], sprache_stellen: lis
             bericht.warnungen.append(satz)
             log.warning(satz)
             roh = [Beitrag(beginn, a.ende, None, g.text.strip(), sicher=False)] if g.text.strip() else []
-        n = naht(roh, a.start) if vorlauf else Naht(roh, [])
-        if n.ersetzt_vorige:
-            bericht.beitraege = [b for b in bericht.beitraege if b.start < min(x.start for x in n.neu) - NAHT_S]
+        n = naht(roh, a.start, " ".join(b.text for b in bericht.beitraege[-3:])) if vorlauf else Naht(roh, [])
         fest = {}
         if vorlauf and (k := vorlauf_kennung(n.doppelt, vorlauf)):
             fest[k] = vorlauf.sprecher
@@ -343,7 +366,7 @@ def zusammenfuehren(ton: np.ndarray, plan: list[Abschnitt], sprache_stellen: lis
                                    "vorlauf": vorlauf is not None, "sekunden": round(g.sekunden, 2),
                                    "prompt_token": g.prompt_token, "erzeugt_token": g.erzeugt_token,
                                    "spitze_gb": round(g.spitze_gb, 2), "wiederholt": wiederholt, "fehler": fehler,
-                                   "naht_zusammengezogen": n.ersetzt_vorige,
+                                   "naht_gekuerzt": n.gekuerzt,
                                    "sprecher": {k: {"als": z.sprecher, "wie": z.wie, "sicher": z.sicher}
                                                 for k, z in zuordnung.items()}})
         log.info("Abschnitt %d/%d %.1f bis %.1f s (gehört ab %.1f): %.1f s gerechnet, %d Zeichen, Spitze MLX %.2f GB",
