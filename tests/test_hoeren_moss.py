@@ -94,7 +94,14 @@ def test_naht_kuerzt_den_doppelt_gehoerten_anfang():
     assert [x.text for x in n.doppelt] == ["Und wenn das wieder geht, dann kann ich die Steckdose"]
     assert [x.text for x in n.neu] == ["Das wird wieder schön.", "Neu."] and n.gekuerzt == 8
     assert n.neu[0].start == 244.5
-    # ohne Wiederholung bleibt alles, ein einzelnes gleiches Wort gilt als Zufall
+    # der zusammengezogene Beitrag beginnt mit dem Vorlauf (anders gehört): er ersetzt ihn ganz
+    n = naht([Beitrag(64.8, 71.0, "S01", "Womit man das laufen lassen kann, oder hier Lama oder so.")], 68.4,
+             "Wo man das laufen lassen kann, so ein bisschen wie so ein LLM Studio.", vorlauf_ab=64.9)
+    assert n.ersetzt_vorlauf and n.gekuerzt == 0 and n.neu[0].start == 64.8
+    # ein einzelnes langes gleiches Wort am Anfang ist doppelt, ein kurzes nicht
+    n = naht([Beitrag(219.8, 224.9, "S01", "ausmachen, muss nicht immer zum")], 221.0, "die Steckdosen wieder ausmachen.")
+    assert [x.text for x in n.neu] == ["muss nicht immer zum"] and n.gekuerzt == 1
+    # ohne Wiederholung bleibt alles, ein einzelnes kurzes gleiches Wort gilt als Zufall
     n = naht([Beitrag(60.2, 70.0, "S02", "an der Stelle geht es weiter")], 60.0, "geht automatisch an")
     assert [x.text for x in n.neu] == ["an der Stelle geht es weiter"] and n.gekuerzt == 0
 

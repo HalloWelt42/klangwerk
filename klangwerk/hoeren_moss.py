@@ -207,10 +207,12 @@ class Naht:
     neu: list[Beitrag]
     doppelt: list[Beitrag]
     gekuerzt: int = 0                 # Wörter am Anfang des ersten neuen Beitrags, die schon gehört waren
+    ersetzt_vorlauf: bool = False     # ein über den Schnitt gezogener Beitrag deckt den Vorlauf ganz ab und ersetzt ihn
 
 
 NAHT_WOERTER = 40                     # so weit zurück wird ein doppelt gehörter Anfang gesucht
-NAHT_MINDESTENS = 2                   # erst ab so vielen gleichen Wörtern gilt ein Anfang als doppelt
+NAHT_MINDESTENS = 2                   # erst ab so vielen gleichen Wörtern gilt ein Anfang als doppelt ...
+NAHT_LANGES_WORT = 6                  # ... oder bei einem einzelnen gleichen Wort ab so vielen Zeichen (kein Füllwort)
 
 
 def _wort(w: str) -> str:
@@ -222,23 +224,27 @@ def doppelte_woerter(vorher: str, text: str) -> int:
     Satzzeichen); unter `NAHT_MINDESTENS` gilt es als Zufall."""
     alt = [w for w in (_wort(x) for x in vorher.split()) if w][-NAHT_WOERTER:]
     neu = [_wort(x) for x in text.split()]
-    for k in range(min(len(alt), len(neu)), NAHT_MINDESTENS - 1, -1):
-        if alt[-k:] == neu[:k]:
+    for k in range(min(len(alt), len(neu)), 0, -1):
+        if alt[-k:] == neu[:k] and (k >= NAHT_MINDESTENS or len(neu[0]) >= NAHT_LANGES_WORT):
             return k
     return 0
 
 
-def naht(beitraege: list[Beitrag], schnitt: float, vorher: str = "") -> Naht:
+def naht(beitraege: list[Beitrag], schnitt: float, vorher: str = "", vorlauf_ab: float | None = None) -> Naht:
     """Teilt die Beiträge eines Abschnitts mit Vorlauf: ganz vor dem Schnitt liegende sind doppelt gehört (Vorlauf), nur
-    die übrigen zählen. Das Modell zieht den Vorlauf aber gern mit dem ersten neuen Satz zusammen oder beginnt mitten im
-    Vorlauf (gemessen 31.10.2026: ganze Sätze doppelt bei 15-s-Abschnitten); darum verliert der erste zählende Beitrag
-    die Wörter am Anfang, die das Ende des schon Gehörten (`vorher`) wiederholen."""
+    die übrigen zählen. Das Modell zieht den Vorlauf aber gern mit dem ersten neuen Satz zusammen (gemessen 31.10.2026:
+    ganze Sätze doppelt bei 15-s-Abschnitten):
+    - beginnt der zusammengezogene Beitrag mit dem Vorlauf (`vorlauf_ab`), ersetzt er ihn ganz (`ersetzt_vorlauf`);
+    - beginnt er mitten im Vorlauf, verliert er die Wörter am Anfang, die das Ende des schon Gehörten (`vorher`)
+      wiederholen."""
     neu, doppelt = [], []
     for b in beitraege:
         if b.start < schnitt - NAHT_S and b.ende <= schnitt + 2 * NAHT_S:
             doppelt.append(b)
         else:
             neu.append(b)
+    if neu and vorlauf_ab is not None and neu[0].start < schnitt - NAHT_S and neu[0].start <= vorlauf_ab + NAHT_S:
+        return Naht(neu, doppelt, 0, True)
     gekuerzt = 0
     if neu and vorher:
         erster = neu[0]
@@ -352,7 +358,10 @@ def zusammenfuehren(ton: np.ndarray, plan: list[Abschnitt], sprache_stellen: lis
             bericht.warnungen.append(satz)
             log.warning(satz)
             roh = [Beitrag(beginn, a.ende, None, g.text.strip(), sicher=False)] if g.text.strip() else []
-        n = naht(roh, a.start, " ".join(b.text for b in bericht.beitraege[-3:])) if vorlauf else Naht(roh, [])
+        n = (naht(roh, a.start, " ".join(b.text for b in bericht.beitraege[-3:]), vorlauf.start) if vorlauf
+             else Naht(roh, []))
+        if n.ersetzt_vorlauf:
+            bericht.beitraege = [b for b in bericht.beitraege if b.start < n.neu[0].start - NAHT_S]
         fest = {}
         if vorlauf and (k := vorlauf_kennung(n.doppelt, vorlauf)):
             fest[k] = vorlauf.sprecher
@@ -366,7 +375,7 @@ def zusammenfuehren(ton: np.ndarray, plan: list[Abschnitt], sprache_stellen: lis
                                    "vorlauf": vorlauf is not None, "sekunden": round(g.sekunden, 2),
                                    "prompt_token": g.prompt_token, "erzeugt_token": g.erzeugt_token,
                                    "spitze_gb": round(g.spitze_gb, 2), "wiederholt": wiederholt, "fehler": fehler,
-                                   "naht_gekuerzt": n.gekuerzt,
+                                   "naht_gekuerzt": n.gekuerzt, "naht_ersetzt": n.ersetzt_vorlauf,
                                    "sprecher": {k: {"als": z.sprecher, "wie": z.wie, "sicher": z.sicher}
                                                 for k, z in zuordnung.items()}})
         log.info("Abschnitt %d/%d %.1f bis %.1f s (gehört ab %.1f): %.1f s gerechnet, %d Zeichen, Spitze MLX %.2f GB",
