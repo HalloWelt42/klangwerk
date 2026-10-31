@@ -11,7 +11,7 @@ sicherung:
 schluessel_orte:
   - "Mac: `KLANGWERK_HF_TOKEN` unter `[umgebung]` in `~/Maschinenraum/dienste/klangwerk-trennen.toml` (Zugang für das gesperrte Modell der Sprechertrennung)"
 einrichten: einrichten.sh
-stand: 710f05b
+stand: b237122
 ---
 
 # Klangwerk
@@ -27,6 +27,9 @@ Modell, lädt es beim Start und gibt den Speicher beim Anhalten wieder frei. So 
 | sprechen | stimme | Qwen3-TTS CustomVoice 8 Bit (neun Stimmen) |
 | klonen | stimme_klonen | Qwen3-TTS Base bf16 |
 | hoeren | hoeren | Whisper Large V3 (MLX), dazu Silero für Sprechpausen; bis zwei Instanzen |
+| hoeren-8bit | hoeren | Whisper Large V3 in 8 Bit (MLX), Variante von Hören |
+| hoeren-turbo | hoeren | Whisper Large V3 Turbo (MLX), Variante von Hören |
+| hoeren-moss | hoeren | MOSS-Transcribe-Diarize 0.9B (torch): Text mit Sprechern in einem Durchgang, eigene Umgebung `.venv-moss` |
 | sprecher | sprecher_erkennen | ECAPA, auf dem Prozessor |
 | trennen | sprecher_trennen | pyannote 3.1 (braucht einen Zugang) |
 | ton | ton | ohne Modell: ffmpeg, die Tonarbeit der Apps (wandeln, messen, blenden, legen) |
@@ -55,19 +58,21 @@ git clone {{repo}} {{ordner}}
 cd {{ordner}} && ./einrichten.sh
 ```
 
-`./einrichten.sh` ruft `./installieren.sh`: `.venv` im Klon mit den Ständen aus `einschraenkungen.txt`, dann je Dienst
+`./einrichten.sh` ruft `./installieren.sh`: `.venv` im Klon mit den Ständen aus `einschraenkungen.txt` und `.venv-moss`
+für Hören mit MOSS (Stände aus `einschraenkungen-moss.txt`), dann je Dienst
 eine Datei `~/Maschinenraum/dienste/klangwerk-<dienst>.toml`, aber nur, wenn es sie noch nicht gibt (Änderungen von
 Hand bleiben). In die Datei von Hören kommen dazu die Sprachen des Modells (`sprachen`, aus seinem Tokenizer), die
 über die Leitstelle als Steckbrief an die Apps gehen. Gestartet wird nichts.
 
-Probe: `ls ~/Maschinenraum/dienste/klangwerk-*.toml | wc -l` meldet 6, und der Maschinenraum zeigt die sechs Dienste
+Probe: `ls ~/Maschinenraum/dienste/klangwerk-*.toml | wc -l` meldet 9, und der Maschinenraum zeigt die neun Dienste
 unter Dienste.
 
 ### 2. Modelle laden
 
 Aus der Sicherung liegen sie in der Modellablage. Frisch einmal je Modelldienst ohne die Sperre fürs Netz starten, so
 dass er sein Modell in die Modellablage lädt, und wieder beenden, etwa
-`HF_HUB_CACHE=~/Maschinenraum/modelle/huggingface .venv/bin/python -m klangwerk sprechen --port 18781`; die Dienstdateien
+`HF_HUB_CACHE=~/Maschinenraum/modelle/huggingface .venv/bin/python -m klangwerk sprechen --port 18781` (Hören mit MOSS
+mit `.venv-moss/bin/python -m klangwerk hoeren-moss`); die Dienstdateien
 setzen danach `HF_HUB_OFFLINE=1`. Für `trennen` vorher den Zugang als `KLANGWERK_HF_TOKEN` unter `[umgebung]` in seine
 Dienstdatei schreiben.
 

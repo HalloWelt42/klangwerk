@@ -17,6 +17,9 @@ dependencies = [
 # Je Dienst die Modellbibliothek; installieren.sh nimmt alle
 mlx = ["mlx>=0.25", "mlx-audio>=0.4", "mlx-whisper>=0.4", "silero-vad>=5"]
 torch = ["torch>=2.4", "torchaudio>=2.4", "speechbrain>=1.0", "pyannote-audio>=3.3"]
+# Hören mit MOSS-Transcribe-Diarize: eigene Umgebung (.venv-moss), weil das Modell neuere transformers braucht als die
+# übrigen Dienste; das Paket der Herkunft auf genau einem Commit, nie ein Zweig (installieren.sh)
+moss = ["torch>=2.8", "transformers>=5.6,<6", "moss-transcribe-diarize @ git+https://github.com/OpenMOSS/MOSS-Transcribe-Diarize.git@79c675f0670cc2f824bcbcdd98263704f40f1f7e"]
 # Tondienst: Protokoll, Routen und Rechnung aus dem Appkern (immer ein Commit, nie der Zweig)
 ton = ["appkern[tondienst] @ https://github.com/HalloWelt42/appkern/archive/3b9249591390be4a871b2a406eeeab25b3c59c97.tar.gz"]
 test = ["pytest>=8", "pytest-asyncio>=0.24", "httpx>=0.27"]

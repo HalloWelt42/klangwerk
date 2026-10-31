@@ -14,7 +14,7 @@ Anwendungen erreichen sie über die Leitstelle. Die Anwendungen selbst, etwa ein
 Stellwerk und halten keine eigenen Modelle.
 
 ```
-Webapps (Stellwerk)  ->  Leitstelle  ->  Maschinenraum  ->  Klangwerk sprechen, klonen, hoeren, sprecher, trennen, ton
+Webapps (Stellwerk)  ->  Leitstelle  ->  Maschinenraum  ->  Klangwerk sprechen, klonen, hoeren (und Varianten), sprecher, trennen, ton
 ```
 
 ## Die Dienste
@@ -24,12 +24,20 @@ Webapps (Stellwerk)  ->  Leitstelle  ->  Maschinenraum  ->  Klangwerk sprechen, 
 | `sprechen` | 8781 | stimme | Qwen3-TTS 1.7B CustomVoice 8-bit | Grafik (MLX) |
 | `klonen` | 8782 | stimme_klonen | Qwen3-TTS 1.7B Base bf16 | Grafik (MLX) |
 | `hoeren` | 8783 | hoeren | Whisper Large V3, Silero für Sprachpausen | Grafik (MLX) |
+| `hoeren-8bit` | 8788 | hoeren | Whisper Large V3 in 8 Bit (Dienst `hoeren` mit `KLANGWERK_MODELL`) | Grafik (MLX) |
+| `hoeren-turbo` | 8789 | hoeren | Whisper Large V3 Turbo (Dienst `hoeren` mit `KLANGWERK_MODELL`) | Grafik (MLX) |
+| `hoeren-moss` | 8787 | hoeren | MOSS-Transcribe-Diarize 0.9B: Text, Zeitmarken und Sprecher in einem Durchgang, eigene Umgebung `.venv-moss` | Grafik (torch) |
 | `sprecher` | 8784 | sprecher_erkennen | ECAPA-TDNN (SpeechBrain) | Prozessor |
 | `trennen` | 8785 | sprecher_trennen | pyannote speaker-diarization 3.1 | Grafik (torch) |
 | `ton` | 8786 | ton | ohne Modell: ffmpeg und numpy (Rechnung und Routen aus `appkern.ton`) | Prozessor |
 
 Ein anderes Modell für denselben Zweck (etwa VoiceDesign statt CustomVoice) ist ein weiterer Dienst mit
 `KLANGWERK_MODELL` in seiner Dienstdatei. Je Prozess bleibt es bei einem Modell.
+
+Hören gibt es so in mehreren Fassungen: alle haben die Fähigkeit hoeren und dieselbe Schnittstelle, die App wählt je
+Auftrag die Kennung des Dienstes (etwa `klangwerk-hoeren-moss`), die Leitstelle entscheidet nur, ob und wann er rechnet.
+MOSS-Transcribe-Diarize braucht neuere transformers als die übrigen Dienste und läuft darum in einer eigenen Umgebung
+`.venv-moss` mit den Ständen aus `einschraenkungen-moss.txt`; das Paket der Herkunft ist auf einen Commit festgelegt.
 
 Innerhalb eines Dienstes rechnet immer nur ein Auftrag zugleich. Mehrere Dienste laufen gleichzeitig: gemessen liefen
 Synthese und Erkennung als getrennte Prozesse je 30 und 40 Durchläufe parallel ohne Fehler, jeder etwa ein Drittel
@@ -46,6 +54,7 @@ gestoert).
 | sprechen | `POST /v1/audio/speech` (übliches Format, Antwort WAV); `POST /tts` (JSON, Datei unter `GET /tts/audio/<datei>`); `GET /tts/voices` |
 | klonen | `POST /tts/clone` (Formular: `text`, `ref_audio`, `ref_text`, `language`, `speed`); `GET /tts/audio/<datei>` |
 | hoeren | `POST /v1/audio/transcriptions` (`json`, `text`, `verbose_json`); `POST /stt` (Segmente mit Wortzeiten); `POST /stt/stream` (Ereignisstrom je Segment); alle nehmen einen Hinweis `prompt` (bis 1000 Zeichen, etwa ein Satz in sauberer Schreibweise und Fachwörter), den jedes Fenster von höchstens 28 s an Sprachpausen bekommt, ohne Bezug auf den vorigen Text |
+| hoeren-moss | wie hoeren `POST /stt` und `POST /v1/audio/transcriptions`, ohne Strom; jedes Segment nennt `speaker` (S01, S02, ...), `speakers` zählt sie auf, `words` bleibt leer (nur Beitragszeiten); der Hinweis `prompt` geht als Hotwords hinter die Anweisung des Modells |
 | sprecher | `POST /speaker/embed` (Datei und `segments` als JSON-Liste von start, end; Abdruck mit 192 Werten oder null unter 1 s) |
 | trennen | `POST /speaker/diarize` (Datei, optional `num_speakers`, `hf_token`); Antwort `turns` mit start, end, speaker |
 | ton | `POST /ton/aufbereiten`, `/ton/blenden`, `/ton/legen` (Dateien und `auftrag` als JSON, Modelle in `appkern.ton`); erzeugte Dateien einmal abholen mit `GET /ton/ergebnis/<name>`. Alle Tonarbeit der Apps läuft hier, der Pi rechnet nicht |

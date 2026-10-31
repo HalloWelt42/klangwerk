@@ -38,7 +38,10 @@ from .unterbau import Einstellungen, Rechner, anwendung, datei_annehmen, wegraeu
 log = logging.getLogger("klangwerk.hoeren")
 PORT = 8783
 VORGABE = "mlx-community/whisper-large-v3-mlx"
-NAMEN = {"mlx-community/whisper-large-v3-mlx": "Whisper Large V3 (MLX)"}
+# Varianten als weitere Dienste mit KLANGWERK_MODELL (Dienstdateien klangwerk-hoeren-8bit, klangwerk-hoeren-turbo)
+NAMEN = {"mlx-community/whisper-large-v3-mlx": "Whisper Large V3 (MLX)",
+         "mlx-community/whisper-large-v3-mlx-8bit": "Whisper Large V3 8 Bit (MLX)",
+         "mlx-community/whisper-large-v3-turbo": "Whisper Large V3 Turbo (MLX)"}
 ABSCHNITT_HOECHSTENS_S = 15          # Strom: ab 15 s wird an der nächsten Pause geteilt
 SEGMENT_MINDESTENS_S = 6             # Segmente unter 6 s zusammenführen
 SEGMENT_HOECHSTENS_S = 15            # über 15 s an einer Pause teilen

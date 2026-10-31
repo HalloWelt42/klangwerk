@@ -23,7 +23,7 @@ import traceback
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -51,6 +51,8 @@ class Einstellungen(BaseSettings):
     hochladen_gb: float = Field(default=2.0, gt=0, description="größte angenommene Audiodatei")
     ergebnisse: Path = Field(default=Path(tempfile.gettempdir()) / "klangwerk", description="Ordner für erzeugte Audiodateien")
     hf_token: str | None = Field(default=None, description="Zugang für gesperrte Modelle (Sprechertrennung)")
+    genauigkeit: Literal["float32", "bfloat16", "float16"] = Field(
+        default="float32", description="Zahlen der Gewichte bei Modellen in torch auf der Grafik (Hören mit MOSS)")
 
 
 class Gesundheit(BaseModel):

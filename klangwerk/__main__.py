@@ -10,7 +10,8 @@ from .unterbau import Einstellungen, starten
 DIENSTE = {
     "sprechen": "Sprachsynthese (Qwen3-TTS)",
     "klonen": "Stimmklon (Qwen3-TTS Base)",
-    "hoeren": "Spracherkennung (Whisper Large V3)",
+    "hoeren": "Spracherkennung (Whisper Large V3, als Variante 8 Bit oder Turbo über KLANGWERK_MODELL)",
+    "hoeren-moss": "Spracherkennung mit Sprechern (MOSS-Transcribe-Diarize, eigene Umgebung .venv-moss)",
     "sprecher": "Stimmabdruck je Abschnitt (ECAPA)",
     "trennen": "Wer spricht wann (pyannote)",
     "ton": "Tonarbeit der Apps (ffmpeg, ohne Modell)",
@@ -20,9 +21,9 @@ DIENSTE = {
 def main() -> None:
     p = argparse.ArgumentParser(prog="klangwerk", description="Klangwerk: Sprachdienste, je Prozess ein Modell")
     p.add_argument("dienst", choices=sorted(DIENSTE), help="; ".join(f"{k}: {v}" for k, v in DIENSTE.items()))
-    p.add_argument("--port", type=int, help="Vorgabe je Dienst (8781 bis 8786)")
+    p.add_argument("--port", type=int, help="Vorgabe je Dienst (8781 bis 8787)")
     a = p.parse_args()
-    modul = importlib.import_module(f"klangwerk.{a.dienst}")
+    modul = importlib.import_module(f"klangwerk.{a.dienst.replace('-', '_')}")
     einstellungen = Einstellungen()
     starten(modul.erstellen(einstellungen), a.port or modul.PORT, einstellungen)
 
