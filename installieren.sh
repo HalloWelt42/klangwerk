@@ -59,8 +59,9 @@ if [ -d "$DIENSTE" ]; then
     hoeren 'KLANGWERK_MODELL = "mlx-community/whisper-large-v3-turbo"'
   "$HIER/.venv/bin/python" -m klangwerk.selbstauskunft hoeren "$DIENSTE/klangwerk-hoeren-turbo.toml"
   # Sprachen nennt die Herkunft nicht einzeln (über 50); ohne Liste prüft die App nur die Form
-  dienstdatei hoeren-moss "MOSS-Transcribe-Diarize 0.9B" "Spracherkennung mit Sprechertrennung und Zeitmarken (MOSS-Transcribe-Diarize 0.9B über MLX, in Abschnitten an Sprechpausen)" 8787 hoeren 4 300 1 1 \
-    hoeren-moss 'KLANGWERK_ABSCHNITT_S = "60"' .venv-moss
+  dienstdatei hoeren-moss "MOSS-Transcribe-Diarize 0.9B" "Spracherkennung mit Sprechertrennung und Zeitmarken (MOSS-Transcribe-Diarize 0.9B über MLX, in Abschnitten an Sprechpausen)" 8787 hoeren 5 300 1 1 \
+    hoeren-moss 'KLANGWERK_ABSCHNITT_S = "30"
+KLANGWERK_ABSCHNITT_HOECHSTENS_S = "240"' .venv-moss
   dienstdatei sprecher "Klangwerk Sprechermerkmal" "Stimmabdruck je Abschnitt (ECAPA), auf dem Prozessor" 8784 sprecher_erkennen 1
   # Sprechertrennung braucht KLANGWERK_HF_TOKEN unter [umgebung] ihrer Dienstdatei
   dienstdatei trennen "Klangwerk Sprechertrennung" "Wer spricht wann: trennt die Sprecher einer Aufnahme nach Zeit (pyannote)" 8785 sprecher_trennen 2

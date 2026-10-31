@@ -5,7 +5,7 @@ Zeiten in Sekunden und eine Sprecherkennung je Beitrag. Wortzeiten gibt es nicht
 
 Abschnitte (HELF-86, HELF-87): Das Modell hört nie eine ganze lange Aufnahme am Stück. Am 31.10.2026 wuchs es dabei
 (torch auf der Grafik, float32, 7 min am Stück) auf über 100 GB und brachte den Mac zum Absturz. Gehört wird in
-Abschnitten bis zur Obergrenze (`KLANGWERK_ABSCHNITT_S`, Vorgabe 60 s, je Auftrag `abschnitt_s` bis höchstens
+Abschnitten bis zur Obergrenze (`KLANGWERK_ABSCHNITT_S`, Vorgabe 30 s, je Auftrag `abschnitt_s` bis höchstens
 `KLANGWERK_ABSCHNITT_HOECHSTENS_S`, der sicheren Länge aus der Messreihe), geschnitten nur in
 Sprechpausen (gemeinsames Modul `abschnitte`, wie beim Dienst hoeren). Je Abschnitt ein eigener Durchgang, danach wird
 der Zwischenspeicher von MLX geleert; die Speichergrenze des Maschinenraums gilt auch im Prozess (unterbau).
@@ -52,7 +52,7 @@ log = logging.getLogger("klangwerk.hoeren_moss")
 PORT = 8787
 VORGABE = "OpenMOSS-Team/MOSS-Transcribe-Diarize"
 NAMEN = {"OpenMOSS-Team/MOSS-Transcribe-Diarize": "MOSS-Transcribe-Diarize 0.9B"}
-ABSCHNITT_VORGABE_S = 60             # Start laut HELF-86; Ziel 120 s nach der Messreihe (Dienstdatei)
+ABSCHNITT_VORGABE_S = 30             # Messreihe 31.10.2026: ab 30 s keine bessere Abschrift, darunter falsche Sprecher
 ABSCHNITT_OBERGRENZE_S = 240         # mehr nimmt der Dienst je Auftrag nicht an (ohne KLANGWERK_ABSCHNITT_HOECHSTENS_S)
 VORLAUF_HOECHSTENS_S = 10.0
 NAHT_S = 0.5                         # Spielraum der Zeitmarken des Modells am Schnitt

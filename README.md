@@ -38,7 +38,7 @@ Hören gibt es so in mehreren Fassungen: alle haben die Fähigkeit hoeren und di
 Auftrag die Kennung des Dienstes (etwa `klangwerk-hoeren-moss`), die Leitstelle entscheidet nur, ob und wann er rechnet.
 MOSS-Transcribe-Diarize läuft über MLX (mlx-audio ab 0.6) in einer eigenen Umgebung `.venv-moss` mit den Ständen aus
 `einschraenkungen-moss.txt`, damit die übrigen Dienste bei mlx-audio 0.4 bleiben. Es hört nie eine ganze Aufnahme am
-Stück, sondern Abschnitte bis `KLANGWERK_ABSCHNITT_S` (Vorgabe 60 s), geschnitten nur in Sprechpausen (Modul
+Stück, sondern Abschnitte bis `KLANGWERK_ABSCHNITT_S` (Vorgabe 30 s, Messreihe HELF-87), geschnitten nur in Sprechpausen (Modul
 `abschnitte`, dasselbe wie für Whisper), mit dem letzten Beitrag des vorigen Abschnitts als Vorlauf; Sprecher werden
 über den Vorlauf und den Stimmabdruck (ECAPA) über die Abschnitte geführt. Jeder MLX-Dienst rechnet unter der Grenze des
 Maschinenraums (`MASCHINENRAUM_SPEICHER_GRENZE_GB` mal `KLANGWERK_SPEICHER_GRENZE_ANTEIL`, Vorgabe 0,9).
