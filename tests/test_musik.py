@@ -73,3 +73,11 @@ def test_musik_grenzen(tmp_path: Path):
                        {"beschreibung": "x", "liedtext": "x", "schritte": 3},
                        {"beschreibung": "x", "liedtext": "x", "schritte": 31}):
             assert c.post("/musik", json=falsch).status_code == 422
+
+
+def test_musik_steckbrief(tmp_path: Path):
+    with TestClient(musik.erstellen(einstellungen(tmp_path), ScheinMotor())) as c:
+        s = c.get("/musik/steckbrief").json()
+        assert s["modell"] == "MiniMax-Music3" and s["gewichte"] == "mlx-community/MiniMax-Music3-mxfp8"
+        assert s["hoechstdauer_s"] == 300 and s["schritte_hoechstens"] == 30 and s["referenzaudio"] is False
+        assert s["lizenzhinweis"] == "MiniMax-Music3"

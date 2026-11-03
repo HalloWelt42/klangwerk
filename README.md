@@ -63,7 +63,7 @@ gestoert).
 | sprecher | `POST /speaker/embed` (Datei und `segments` als JSON-Liste von start, end; Abdruck mit 192 Werten oder null unter 1 s) |
 | trennen | `POST /speaker/diarize` (Datei, optional `num_speakers`, `hf_token`); Antwort `turns` mit start, end, speaker |
 | ton | `POST /ton/aufbereiten`, `/ton/blenden`, `/ton/legen` (Dateien und `auftrag` als JSON, Modelle in `appkern.ton`); erzeugte Dateien einmal abholen mit `GET /ton/ergebnis/<name>`. Alle Tonarbeit der Apps läuft hier, der Pi rechnet nicht |
-| musik | `POST /musik` (JSON: `beschreibung`, `liedtext` mit Abschnittsmarken, `dauer_s` bis 300, `schritte` 4 bis 30, `startwert`), Antwort wie `/tts` mit `rechenzeit_s`; Datei unter `GET /tts/audio/<datei>`; rechnet etwa 19-mal so lang wie das Lied (M4 Max, mxfp8) |
+| musik | `POST /musik` (JSON: `beschreibung`, `liedtext` mit Abschnittsmarken, `dauer_s` bis 300, `schritte` 4 bis 30, `startwert`), Antwort wie `/tts` mit `rechenzeit_s`; Datei unter `GET /tts/audio/<datei>`; `GET /musik/steckbrief` (Höchstdauer, Schritte, Referenzaudio, Lizenzhinweis); rechnet etwa 19- bis 21-mal so lang wie das Lied (M4 Max, mxfp8) |
 
 Die Aufrufe `/tts`, `/tts/clone`, `/stt`, `/stt/stream` und `/speaker/*` entsprechen einem älteren Sammeldienst, damit
 Anwendungen ohne Umbau umziehen können. Übernommen sind auch seine Nachbesserungen: Wiederholung bei leerer Ausgabe,
