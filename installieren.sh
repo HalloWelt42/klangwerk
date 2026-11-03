@@ -52,7 +52,7 @@ EOF
 if [ -d "$DIENSTE" ]; then
   dienstdatei sprechen "Qwen3-TTS 1.7B CustomVoice" "Sprachsynthese mit Qwen3-TTS CustomVoice (9 Stimmen)" 8781 stimme 3
   dienstdatei klonen "Qwen3-TTS 1.7B Base" "Stimme aus einer Referenz klonen, Qwen3-TTS Base" 8782 stimme_klonen 6
-  dienstdatei hoeren "Whisper Large V3" "Spracherkennung mit Whisper Large V3" 8783 hoeren 4 300 1 2
+  dienstdatei hoeren "Whisper Large V3" "Spracherkennung mit Whisper Large V3" 8783 hoeren 6.5 300 1 2   # gemessen bis 6,13 GB je Instanz (HELF-149)
   "$HIER/.venv/bin/python" -m klangwerk.selbstauskunft hoeren "$DIENSTE/klangwerk-hoeren.toml"   # Sprachen des Modells
   # Varianten des Hörens: weitere Dienste mit eigenem Modell, für die Apps je Auftrag wählbar
   dienstdatei hoeren-8bit "Whisper Large V3 (8 Bit)" "Spracherkennung mit Whisper Large V3 in 8 Bit" 8788 hoeren 3 300 1 1 \
