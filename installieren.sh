@@ -55,7 +55,8 @@ if [ -d "$DIENSTE" ]; then
   dienstdatei hoeren "Whisper Large V3" "Spracherkennung mit Whisper Large V3" 8783 hoeren 6.5 300 1 2   # gemessen bis 6,13 GB je Instanz (HELF-149)
   "$HIER/.venv/bin/python" -m klangwerk.selbstauskunft hoeren "$DIENSTE/klangwerk-hoeren.toml"   # Sprachen des Modells
   # Varianten des Hörens: weitere Dienste mit eigenem Modell, für die Apps je Auftrag wählbar
-  dienstdatei hoeren-8bit "Whisper Large V3 (8 Bit)" "Spracherkennung mit Whisper Large V3 in 8 Bit" 8788 hoeren 3 300 1 1 \
+  # gemessen bis 4,75 GB (HELF-149)
+  dienstdatei hoeren-8bit "Whisper Large V3 (8 Bit)" "Spracherkennung mit Whisper Large V3 in 8 Bit" 8788 hoeren 5.5 300 1 1 \
     hoeren 'KLANGWERK_MODELL = "mlx-community/whisper-large-v3-mlx-8bit"'
   "$HIER/.venv/bin/python" -m klangwerk.selbstauskunft hoeren "$DIENSTE/klangwerk-hoeren-8bit.toml"
   dienstdatei hoeren-turbo "Whisper Large V3 Turbo" "Spracherkennung mit Whisper Large V3 Turbo (schneller, kleinerer Dekodierer)" 8789 hoeren 3 300 1 1 \
