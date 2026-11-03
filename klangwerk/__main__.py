@@ -9,6 +9,7 @@ from .unterbau import Einstellungen, starten
 
 DIENSTE = {
     "sprechen": "Sprachsynthese (Qwen3-TTS)",
+    "musik": "Musik aus Beschreibung und Liedtext (MiniMax-Music3 in MLX, Umgebung .venv-moss)",
     "klonen": "Stimmklon (Qwen3-TTS Base)",
     "hoeren": "Spracherkennung (Whisper Large V3, als Variante 8 Bit oder Turbo über KLANGWERK_MODELL)",
     "hoeren-moss": "Spracherkennung mit Sprechern (MOSS-Transcribe-Diarize über MLX, eigene Umgebung .venv-moss)",

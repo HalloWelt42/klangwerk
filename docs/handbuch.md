@@ -33,6 +33,7 @@ Modell, lädt es beim Start und gibt den Speicher beim Anhalten wieder frei. So 
 | sprecher | sprecher_erkennen | ECAPA, auf dem Prozessor |
 | trennen | sprecher_trennen | pyannote 3.1 (braucht einen Zugang) |
 | ton | ton | ohne Modell: ffmpeg, die Tonarbeit der Apps (wandeln, messen, blenden, legen) |
+| musik | musik | MiniMax-Music3 (MLX, mxfp8; bf16 als `musik-bf16`), Lied aus Beschreibung und Liedtext; Prüfdienst, Dienstdatei vorerst von Hand (siehe unten) |
 
 Sichtbar heißen die Dienste nach ihrem Modell: der `name` der Dienstdatei ist der echte Modellname, etwa "Whisper Large
 V3", "Qwen3-TTS 1.7B Base", "ECAPA-TDNN" oder "pyannote speaker-diarization 3.1"; der Tondienst ohne Modell heißt nach
@@ -76,6 +77,11 @@ setzen. Gestartet wird nichts.
 
 Probe: `ls ~/Maschinenraum/dienste/klangwerk-*.toml | wc -l` meldet 9, und der Maschinenraum zeigt die neun Dienste
 unter Dienste.
+
+Der Musikdienst ist noch ein Prüfdienst (MUS-1): seine Dateien `klangwerk-musik.toml` (mxfp8, Port 8792) und
+`klangwerk-musik-bf16.toml` (bf16, Port 8793, `KLANGWERK_MODELL = "mlx-community/MiniMax-Music3-bf16"`) entstehen
+von Hand mit `befehl = [".venv-moss/bin/python", "-m", "klangwerk", "musik", "--port", "$MASCHINENRAUM_PORT"]`,
+`faehigkeiten = ["musik"]` und `speicher_grenze_gb = 96`; das Einrichtungsskript legt sie erst nach der Hörprobe an.
 
 ### 2. Modelle laden
 

@@ -30,6 +30,7 @@ Webapps (Stellwerk)  ->  Leitstelle  ->  Maschinenraum  ->  Klangwerk sprechen, 
 | `sprecher` | 8784 | sprecher_erkennen | ECAPA-TDNN (SpeechBrain) | Prozessor |
 | `trennen` | 8785 | sprecher_trennen | pyannote speaker-diarization 3.1 | Grafik (torch) |
 | `ton` | 8786 | ton | ohne Modell: ffmpeg und numpy (Rechnung und Routen aus `appkern.ton`) | Prozessor |
+| `musik` | 8792 | musik | MiniMax-Music3 in MLX (mxfp8 von mlx-community; bf16 als Dienst `musik-bf16` auf 8793 mit `KLANGWERK_MODELL`): Lied aus Beschreibung und Liedtext, bis etwa 6 Minuten Stereo, eigene Umgebung `.venv-moss`; Prüfdienst (MUS-1), Dienstdatei vorerst von Hand | Grafik (MLX) |
 
 Ein anderes Modell für denselben Zweck (etwa VoiceDesign statt CustomVoice) ist ein weiterer Dienst mit
 `KLANGWERK_MODELL` in seiner Dienstdatei. Je Prozess bleibt es bei einem Modell.
@@ -62,6 +63,7 @@ gestoert).
 | sprecher | `POST /speaker/embed` (Datei und `segments` als JSON-Liste von start, end; Abdruck mit 192 Werten oder null unter 1 s) |
 | trennen | `POST /speaker/diarize` (Datei, optional `num_speakers`, `hf_token`); Antwort `turns` mit start, end, speaker |
 | ton | `POST /ton/aufbereiten`, `/ton/blenden`, `/ton/legen` (Dateien und `auftrag` als JSON, Modelle in `appkern.ton`); erzeugte Dateien einmal abholen mit `GET /ton/ergebnis/<name>`. Alle Tonarbeit der Apps läuft hier, der Pi rechnet nicht |
+| musik | `POST /musik` (JSON: `beschreibung`, `liedtext` mit Abschnittsmarken, `dauer_s` bis 300, `schritte` 4 bis 30, `startwert`), Antwort wie `/tts` mit `rechenzeit_s`; Datei unter `GET /tts/audio/<datei>`; rechnet etwa 19-mal so lang wie das Lied (M4 Max, mxfp8) |
 
 Die Aufrufe `/tts`, `/tts/clone`, `/stt`, `/stt/stream` und `/speaker/*` entsprechen einem älteren Sammeldienst, damit
 Anwendungen ohne Umbau umziehen können. Übernommen sind auch seine Nachbesserungen: Wiederholung bei leerer Ausgabe,
