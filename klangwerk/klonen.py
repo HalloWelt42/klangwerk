@@ -15,49 +15,12 @@ from fastapi import File, Form, HTTPException, UploadFile
 from .ausgabe import Audioergebnis, abholen_anbieten, ablegen
 from .unterbau import Einstellungen, Rechner, anwendung, datei_annehmen, wegraeumen
 from .laenge import hoechstens_token
+from .synthese import mit_tempo, modell_audio
 
 log = logging.getLogger("klangwerk.klonen")
 PORT = 8782
 VORGABE = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16"
 VERSUCHE = 3
-
-
-def artefakt_entfernen(audio: np.ndarray, sr: int, thresh_db: float = -35.0, min_gap: float = 0.13,
-                       max_blip: float = 0.45, max_look: float = 1.1) -> tuple[np.ndarray, tuple[float, float] | None]:
-    """Entfernt ein kurzes führendes Klon-Artefakt: Qwen3-TTS hängt beim Klonen am Satzanfang oft einen kurzen,
-    referenzbedingten Laut an, durch eine Pause von der Rede getrennt (klingt wie ein zusätzliches Wort).
-
-    Bewusst vorsichtig, damit nie echte Rede verloren geht: geschnitten wird nur, wenn das Audio mit Klang beginnt,
-    dieser Laut kurz ist (höchstens max_blip), eine echte Pause folgt (mindestens min_gap) und die Rede spätestens bei
-    max_look beginnt. Unverändert übernommen aus dem bisherigen Sprachdienst."""
-    a = audio if audio.ndim == 1 else audio.mean(axis=1)
-    n = len(a)
-    if n == 0:
-        return audio, None
-    hop, win = max(1, int(0.01 * sr)), max(1, int(0.02 * sr))
-    idx = np.arange(0, n, hop)
-    energie = np.array([float(np.sqrt(np.mean(a[i:i + win].astype(np.float64) ** 2))) if i < n else 0.0 for i in idx])
-    spitze = float(energie.max()) if energie.size else 0.0
-    if spitze <= 0:
-        return audio, None
-    schwelle = max(spitze * (10 ** (thresh_db / 20.0)), spitze * 0.03)
-    klang = energie > schwelle
-    if not klang[0]:
-        return audio, None
-    k = 0
-    while k < len(klang) and klang[k]:
-        k += 1
-    laut_ende = idx[k] / sr if k < len(klang) else None
-    if laut_ende is None or laut_ende > max_blip:
-        return audio, None
-    while k < len(klang) and not klang[k]:
-        k += 1
-    if k >= len(klang):
-        return audio, None
-    rede = idx[k] / sr
-    if (rede - laut_ende) < min_gap or rede > max_look:
-        return audio, None
-    return a[int(rede * sr):], (laut_ende, rede)
 
 
 class Motor:
@@ -75,10 +38,7 @@ class Motor:
         return int(self.m.sample_rate)
 
     def erzeugen(self, **kwargs: Any) -> np.ndarray | None:
-        ergebnisse = list(self.m.generate(**kwargs))
-        if not ergebnisse or ergebnisse[0].audio is None:
-            return None
-        return np.array(ergebnisse[0].audio)
+        return modell_audio(self.m, **kwargs)
 
 
 def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = None):
@@ -112,15 +72,14 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
             audio = None
             for versuch in range(VERSUCHE):
                 audio = await rechner.rechnen(motor.erzeugen, text=text, ref_audio=str(referenz), ref_text=prompt_text,
-                                              language=language, speed=speed, max_tokens=hoechstens_token(text, speed))
+                                              language=language, speed=speed, max_tokens=hoechstens_token(text))
                 if audio is not None:
                     break
                 log.warning("Klon-Versuch %d: kein Audio, wiederhole", versuch + 1)
             if audio is None:
                 raise HTTPException(500, "Kein Audio erzeugt")
-            audio, geschnitten = artefakt_entfernen(audio, motor.sample_rate)
-            if geschnitten:
-                log.info("Führendes Artefakt entfernt (Laut bis %.3f s, Rede ab %.3f s)", *geschnitten)
+            # Ein kurzer Sprechbeginn mit Pause kann ein gewolltes Wort sein. Keine Inhaltskorrektur nach Lautstärke.
+            audio = await mit_tempo(audio, motor.sample_rate, speed)
             return ablegen(audio, motor.sample_rate, e.ergebnisse, "clone", language=language)
         finally:
             wegraeumen(referenz)

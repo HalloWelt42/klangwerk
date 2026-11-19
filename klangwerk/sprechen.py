@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from .ausgabe import Audioergebnis, abholen_anbieten, ablegen, als_wav
 from .unterbau import Einstellungen, Rechner, anwendung
 from .laenge import hoechstens_token
+from .synthese import mit_tempo, modell_audio
 
 log = logging.getLogger("klangwerk.sprechen")
 PORT = 8781
@@ -91,10 +92,7 @@ class Motor:
             return ["german", "english"]
 
     def erzeugen(self, **kwargs: Any) -> np.ndarray | None:
-        ergebnisse = list(self.m.generate(**kwargs))
-        if not ergebnisse or ergebnisse[0].audio is None:
-            return None
-        return np.array(ergebnisse[0].audio)
+        return modell_audio(self.m, **kwargs)
 
 
 def _modell_passt(gewuenscht: str | None, gehalten: str) -> None:
@@ -112,10 +110,10 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
 
     async def synthese(text: str, **regler: Any) -> np.ndarray:
         for versuch in range(VERSUCHE):
-            audio = await rechner.rechnen(motor.erzeugen, text=text, max_tokens=hoechstens_token(text, regler.get("speed", 1.0)),
+            audio = await rechner.rechnen(motor.erzeugen, text=text, max_tokens=hoechstens_token(text),
                                           **regler)
             if audio is not None:
-                return audio
+                return await mit_tempo(audio, motor.sample_rate, regler.get("speed", 1.0))
             log.warning("Synthese-Versuch %d: kein Audio, wiederhole", versuch + 1)
         raise HTTPException(500, "Kein Audio erzeugt")
 

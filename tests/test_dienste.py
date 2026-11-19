@@ -70,7 +70,7 @@ def test_sprechen(tmp_path: Path):
         d = r.json()
         assert d["duration"] == 1.0 and d["sample_rate"] == RATE and d["voice"] == "aiden"
         assert len(m.aufrufe) == 2 and m.aufrufe[1]["instruct"] == "ruhig"           # Wiederholung nach leerem Versuch
-        assert m.aufrufe[1]["max_tokens"] == laenge.hoechstens_token(m.aufrufe[1]["text"], m.aufrufe[1].get("speed", 1.0))
+        assert m.aufrufe[1]["max_tokens"] == laenge.hoechstens_token(m.aufrufe[1]["text"])
         assert c.get(f"/tts/audio/{d['filename']}").content[:4] == b"RIFF"
         assert c.get("/tts/audio/..%2Fgeheim.wav").status_code == 404
         r = c.post("/v1/audio/speech", json={"input": "Hallo", "voice": "serena"})
@@ -94,19 +94,6 @@ def test_sprechen_gibt_nach_drei_leeren_versuchen_auf(tmp_path: Path):
 
 
 # ── klonen ───────────────────────────────────────────────────────────────
-def test_artefakt_entfernen():
-    sr = 16000
-    laut = 0.5 * np.ones(int(0.2 * sr), dtype=np.float32)
-    pause = np.zeros(int(0.3 * sr), dtype=np.float32)
-    rede = 0.5 * np.ones(sr, dtype=np.float32)
-    ohne, info = klonen.artefakt_entfernen(np.concatenate([laut, pause, rede]), sr)
-    assert info is not None and abs(len(ohne) / sr - 1.0) < 0.02
-    unveraendert, info = klonen.artefakt_entfernen(np.concatenate([pause, rede]), sr)   # beginnt mit Stille
-    assert info is None and len(unveraendert) == len(pause) + len(rede)
-    lang = 0.5 * np.ones(int(0.8 * sr), dtype=np.float32)                                  # langer Anfang ist Rede
-    assert klonen.artefakt_entfernen(np.concatenate([lang, pause, rede]), sr)[1] is None
-
-
 def test_klonen(tmp_path: Path):
     class Schein:
         sample_rate = 16000
@@ -124,7 +111,9 @@ def test_klonen(tmp_path: Path):
         bereit(c)
         r = c.post("/tts/clone", data={"text": "Hallo", "ref_text": "Referenz"}, files={"ref_audio": ("stimme.mp3", b"ID3...", "audio/mpeg")})
         assert r.status_code == 200, r.text
-        assert abs(r.json()["duration"] - 1.0) < 0.02                                       # Artefakt entfernt
+        assert r.json()["duration"] == 1.5                                               # gewollter Anfang bleibt
+        geliefert, _ = sf.read(io.BytesIO(c.get(f"/tts/audio/{r.json()['filename']}").content))
+        assert np.allclose(geliefert[:3200], 0.5) and np.allclose(geliefert[3200:8000], 0.0)
         assert m.aufrufe[0]["ref_text"] == "Referenz" and not Path(m.aufrufe[0]["ref_audio"]).exists()   # aufgeräumt
         assert m.aufrufe[0]["max_tokens"] == laenge.hoechstens_token("Hallo")                     # nie bis 4096 durchlaufen
         # ohne Text: reiner Abdruck (ref_text None), nie ICL mit leerem Text; ausdrücklich abdruck trotz Text
@@ -335,8 +324,7 @@ def test_ton_rechnet_mit_ffmpeg_ohne_modell(tmp_path):
 
 
 def test_hoechstlaenge_nach_text():
-    """Großzügig (5 Zeichen je Sekunde und 3 s Rand), langsameres Tempo verlängert, nie über die Vorgabe des Modells."""
+    """Großzügig (5 Zeichen je Sekunde und 3 s Rand); Tempo wird erst auf das fertige Audio angewendet."""
     assert laenge.hoechstens_token("Hallo") == 48                                    # (3 + 1) s * 12
     assert laenge.hoechstens_token("x" * 180) == (3 + 36) * 12                       # ein langes Stück: 39 s
-    assert laenge.hoechstens_token("x" * 180, tempo=0.5) == (3 + 36) * 24
     assert laenge.hoechstens_token("x" * 100000) == laenge.HOECHSTENS_TOKEN

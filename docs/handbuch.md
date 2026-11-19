@@ -110,6 +110,11 @@ Sprechertrennung steht nur in ihrer Dienstdatei und gehört mit `~/Maschinenraum
 
 ## Wenn etwas klemmt
 
+Die Reparatur der Sprachwahl, der vollständigen Ausgabe, des Tempos und kurzer Satzanfänge ist in
+`docs/SPRACHAUSGABE.md` beschrieben (HELF-244 bis HELF-246). Die Sprachwahl gelangt jetzt ausdrücklich zum Modell;
+das Tempo wird nach der Synthese bei gleicher Tonhöhe umgesetzt. Die Vertonung unterscheidet neue Ergebnisse über eine
+eigene Synthesefassung, ohne frühere Audiofassungen zu löschen (HELF-247).
+
 - Ein Dienst bleibt bei `laedt` oder endet sofort: das Modell fehlt in der Modellablage und die Dienstdatei sperrt das
   Netz (`HF_HUB_OFFLINE=1`); Schritt 2.
 - `trennen` meldet `ohne_zugang`: `KLANGWERK_HF_TOKEN` fehlt oder das Modell ist für den Zugang nicht freigeschaltet.
