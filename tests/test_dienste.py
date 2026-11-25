@@ -147,7 +147,13 @@ class ScheinHoeren:
     def laden(self):
         return True
 
-    def erkennen(self, pfad, sprache, hinweis="", abschnitt_s=None):
+    def ton(self, pfad):
+        return np.zeros(1, dtype=np.float32)
+
+    def stellen(self, ton):
+        return []                                          # keine Sprache: nichts nachzuhören
+
+    def erkennen(self, ton, sprache, hinweis="", abschnitt_s=None, stellen=()):
         self.aufrufe.append(sprache)
         self.hinweise.append(hinweis)
         self.abschnitt_s = abschnitt_s

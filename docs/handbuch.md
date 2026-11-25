@@ -11,7 +11,7 @@ sicherung:
 schluessel_orte:
   - "Mac: `KLANGWERK_HF_TOKEN` unter `[umgebung]` in `~/Maschinenraum/dienste/klangwerk-trennen.toml` (Zugang für das gesperrte Modell der Sprechertrennung)"
 einrichten: einrichten.sh
-stand: a67e492
+stand: be15623
 ---
 
 # Klangwerk
@@ -119,6 +119,10 @@ eigene Synthesefassung, ohne frühere Audiofassungen zu löschen (HELF-247).
   Netz (`HF_HUB_OFFLINE=1`); Schritt 2.
 - `trennen` meldet `ohne_zugang`: `KLANGWERK_HF_TOKEN` fehlt oder das Modell ist für den Zugang nicht freigeschaltet.
 - Der Tondienst meldet nicht bereit: ffmpeg oder ffprobe fehlen im Suchpfad des Maschinenraums (Homebrew).
+- In einer Abschrift fehlt Gesprochenes: der Hördienst (Whisper) vergleicht nach dem Erkennen die Sprachstellen mit den
+  Wörtern und hört jede Strecke ohne Text noch einmal für sich (BT-91). Was er dabei nicht sicher hört, steht als
+  `luecken` in der Antwort (Zeiten, kein Text), was dazukam, als `nachgehoert`; beides steht auch im Protokoll des
+  Dienstes ("Nachgehört", "Sprache ohne Text").
 - Speicher knapp: je Dienst ein Prozess mit seinem Modell (zusammen rund 16 GB); die Leitstelle hält Dienste an, die
   sie nicht braucht. Die Anmeldung je Dienst (`speicher_gb` in der Dienstdatei) folgt den gemessenen Arbeitsspitzen im
   Maschinenraum, Whisper Large V3 etwa 6,5 GB je Instanz, in 8 Bit 5,5 GB; liegt ein Dienst darüber, beendet ihn die Speicherwache bei

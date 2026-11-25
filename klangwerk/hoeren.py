@@ -12,6 +12,11 @@ Hinweis kippt Whisper in langen Strecken in Kleinschrift ohne Satzzeichen). Wied
 Hinweis, fällt das Segment weg. Sprechertrennung gehört nicht hierher, sondern in den Dienst trennen; der
 Formularwert `diarize` wird angenommen und ignoriert (`speakers` bleibt leer).
 
+Nichts Gesprochenes fällt still weg (BT-91): nach dem Erkennen vergleicht der Dienst die Sprachstellen mit den Wörtern
+der Abschrift (Modul `luecken`). Was fehlt, weil Whisper es ausließ oder ein Filter strich, hört er noch einmal für sich,
+zuerst in Fenstern bis 12 s, dann bis 6 s ohne Hinweis; übernommen wird nur, was Whisper dabei sicher hört. Bleibt dann
+noch Sprache ohne Text, steht sie in `luecken`, erfunden wird nichts; `nachgehoert` nennt, was dazukam.
+
 Schnittstelle wie bisher (`POST /stt`, `POST /stt/stream` als Ereignisstrom) und im üblichen Format
 (`POST /v1/audio/transcriptions`).
 """
@@ -26,14 +31,17 @@ import shutil
 import subprocess
 import tempfile
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from fastapi import File, Form, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
-from .abschnitte import Sprachpausen
+from . import luecken
+from .abschnitte import Sprachpausen, planen
 from .stimmdaten import RATE, mono_16k
 from .unterbau import Einstellungen, Rechner, anwendung, datei_annehmen, wegraeumen
 
@@ -49,6 +57,8 @@ SEGMENT_MINDESTENS_S = 6             # Segmente unter 6 s zusammenführen
 SEGMENT_HOECHSTENS_S = 15            # über 15 s an einer Pause teilen
 PAUSE_S = 0.3
 FENSTER_S = 28                       # mit Hinweis: eigene Fenster unter den 30 s von Whisper, damit jedes ihn bekommt
+NACHHOEREN = ((12.0, True), (6.0, False))      # je Versuch: Fenster höchstens, mit Hinweis
+SICHER_LOGPROB, SICHER_KOMPRESSION, SICHER_OHNE_SPRACHE = -1.0, 2.4, 0.6      # Nachgehörtes: nur was Whisper sicher hört
 HINWEIS_HOECHSTENS = 1000            # Zeichen; Whisper nimmt ohnehin nur die letzten 223 Merkmale des vorigen Texts
 HALLUZINATIONEN = ("Untertitel von", "Untertitelung", "Vielen Dank für", "Copyright", "www.", "http", "Abonniere", "Musik", "♪", "🎵")
 SPRACHCODES = {"german": "de", "english": "en", "chinese": "zh", "japanese": "ja", "korean": "ko", "french": "fr", "spanish": "es", "auto": None}
@@ -96,38 +106,84 @@ def _vergleich(text: str) -> str:
     return " ".join("".join(z for z in text.lower() if z.isalnum() or z.isspace()).split())
 
 
-def segmente_bereinigen(segmente: list, hinweis: str = "") -> list[dict]:
-    """Halluzinationen und Wiederholungen entfernen (auch ein nur wiederholter Hinweis), dann Abschnitte von 6 bis 15 s
-    an Pausen bilden."""
-    gefiltert, gesehen = [], set()
+@dataclass(frozen=True)
+class Aussortiert:
+    start: float
+    end: float
+    text: str
+    grund: str
+
+
+def _phrase(text: str) -> bool:
+    return any(m in text for m in HALLUZINATIONEN) and len(text) < 50
+
+
+def _einzelnes(s: dict) -> dict:
+    return {"start": s.get("start", 0), "end": s.get("end", 0), "text": (s.get("text") or "").strip(), "words": woerter(s.get("words"))}
+
+
+def aussortieren(segmente: Sequence[dict], hinweis: str = "") -> tuple[list[dict], list[Aussortiert]]:
+    """Halluzinationen und Wiederholungen (auch ein nur wiederholter Hinweis) von den übrigen Segmenten trennen."""
+    gut, weg, gesehen = [], [], set()
     hinweis_vergleich = _vergleich(hinweis)
     for s in segmente:
-        text = (s.get("text") or "").strip()
-        if not text or text in gesehen:
+        x = _einzelnes(s)
+        text, w = x["text"], x["text"].split()
+        if not text:
             continue
-        if hinweis_vergleich and len(_vergleich(text)) > 3 and _vergleich(text) in hinweis_vergleich:
-            continue
-        w = text.split()
-        if len(w) > 3 and len({x.lower() for x in w}) / len(w) < 0.3:
-            continue
-        if any(m in text for m in HALLUZINATIONEN) and len(text) < 50:
+        grund = ("wiederholt" if text in gesehen
+                 else "hinweis" if hinweis_vergleich and len(_vergleich(text)) > 3 and _vergleich(text) in hinweis_vergleich
+                 else "schleife" if len(w) > 3 and len({y.lower() for y in w}) / len(w) < 0.3
+                 else "phrase" if _phrase(text) else "")
+        if grund:
+            weg.append(Aussortiert(x["start"], x["end"], text, grund))
             continue
         gesehen.add(text)
-        gefiltert.append({"start": s.get("start", 0), "end": s.get("end", 0), "text": text, "words": woerter(s.get("words"))})
-    if not gefiltert:
-        return gefiltert
-    zusammen, akt = [], {**gefiltert[0], "words": list(gefiltert[0]["words"])}
-    for s in gefiltert[1:]:
+        gut.append(x)
+    return gut, weg
+
+
+def sicher(s: dict) -> bool:
+    """Hört Whisper das Segment sicher? Ohne Angaben (andere Motoren) ja."""
+    if (s.get("avg_logprob") or 0.0) < SICHER_LOGPROB or (s.get("compression_ratio") or 0.0) > SICHER_KOMPRESSION:
+        return False
+    return (s.get("no_speech_prob") or 0.0) <= SICHER_OHNE_SPRACHE or (s.get("avg_logprob") or 0.0) > -0.5
+
+
+def nachgehoert_annehmen(segmente: Sequence[dict], hinweis: str, frueher: Sequence[str]) -> list[dict]:
+    """Was vom Nachhören bleibt. Eine Wiederholung von früher im Text ist hier erlaubt: zweimal für sich gehört, ist sie
+    gesprochen. Eine typische Halluzination gilt nur, wenn schon das erste Hören sie an dieser Stelle hatte."""
+    gut, weg = aussortieren([s for s in segmente if sicher(s)], hinweis)
+    bekannt = {_vergleich(t) for t in frueher}
+    gut += [{"start": a.start, "end": a.end, "text": a.text, "words": _worte_von(segmente, a)} for a in weg
+            if a.grund == "phrase" and _vergleich(a.text) in bekannt]
+    return sorted(gut, key=lambda s: s["start"])
+
+
+def _worte_von(segmente: Sequence[dict], a: Aussortiert) -> list[dict]:
+    return next((woerter(s.get("words")) for s in segmente if s.get("start") == a.start and (s.get("text") or "").strip() == a.text), [])
+
+
+def zusammenfassen(segmente: Sequence[dict]) -> list[dict]:
+    """Abschnitte von 6 bis 15 s, getrennt an Pausen."""
+    if not segmente:
+        return []
+    zusammen, akt = [], {**segmente[0], "words": list(segmente[0]["words"])}
+    for s in segmente[1:]:
         dauer, luecke = akt["end"] - akt["start"], s["start"] - akt["end"]
         if dauer >= SEGMENT_HOECHSTENS_S or (dauer >= SEGMENT_MINDESTENS_S and luecke >= PAUSE_S):
             zusammen.append(akt)
             akt = {**s, "words": list(s["words"])}
         else:
-            akt["end"] = s["end"]
+            akt["end"] = max(akt["end"], s["end"])
             akt["text"] += " " + s["text"]
             akt["words"].extend(s["words"])
     zusammen.append(akt)
     return zusammen
+
+
+def segmente_bereinigen(segmente: Sequence[dict], hinweis: str = "") -> list[dict]:
+    return zusammenfassen(aussortieren(segmente, hinweis)[0])
 
 
 def verschieben(segmente: list, versatz: float) -> list[dict]:
@@ -176,29 +232,79 @@ class Motor:
         self.pausen.laden()                                  # ohne Sprachpausen kein Dienst: nie feste Schnitte
         return True
 
-    def erkennen(self, pfad: str, sprache: str | None, hinweis: str = "", abschnitt_s: float | None = None) -> dict:
-        """Ganze Datei. Mit Hinweis oder gewünschter Abschnittslänge in eigenen Fenstern an Sprechpausen (siehe oben),
-        jedes mit dem Hinweis; Zeiten auf die Datei."""
+    def ton(self, pfad: str) -> np.ndarray:
+        return mono_16k(pfad)
+
+    def stellen(self, ton: np.ndarray) -> list[luecken.Strecke]:
+        return self.pausen.stellen(ton)
+
+    def _hoeren(self, ton: np.ndarray, sprache: str | None, hinweis: str) -> dict:
         import mlx_whisper
-        optionen = dict(path_or_hf_repo=self.modell, language=sprache, condition_on_previous_text=False,
-                        no_speech_threshold=0.6, compression_ratio_threshold=2.4, word_timestamps=True, verbose=False)
-        fenster_s = fensterlaenge(hinweis, abschnitt_s)
-        if fenster_s is None:
-            return {**mlx_whisper.transcribe(pfad, **optionen), "abschnitte": []}
-        ton = mono_16k(pfad)
+        return mlx_whisper.transcribe(ton, path_or_hf_repo=self.modell, language=sprache, condition_on_previous_text=False,
+                                      no_speech_threshold=0.6, compression_ratio_threshold=2.4, word_timestamps=True, verbose=False,
+                                      **({"initial_prompt": hinweis} if hinweis else {}))
+
+    def in_fenstern(self, ton: np.ndarray, sprache: str | None, hinweis: str, stellen: Sequence[luecken.Strecke], fenster_s: float) -> dict:
+        """In eigenen Fenstern an Sprechpausen, jedes mit dem Hinweis; Zeiten auf die Datei."""
         segmente, erkannt = [], None
-        plan = self.pausen.abschnitte(ton, fenster_s)
+        plan = planen(stellen, len(ton) / RATE, fenster_s)
         for f in plan:
             stueck = ton[int(f.start * RATE):int(f.ende * RATE)]
             if len(stueck) < 0.3 * RATE:
                 continue
-            roh = mlx_whisper.transcribe(stueck, **({"initial_prompt": hinweis} if hinweis else {}), **optionen)
+            roh = self._hoeren(stueck, sprache, hinweis)
             erkannt = erkannt or roh.get("language")
             segmente += verschieben(roh.get("segments", []), f.start)
         return {"segments": segmente, "language": erkannt or sprache, "abschnitte": [f.als_dict() for f in plan]}
 
+    def erkennen(self, ton: np.ndarray, sprache: str | None, hinweis: str = "", abschnitt_s: float | None = None,
+                 stellen: Sequence[luecken.Strecke] = ()) -> dict:
+        """Ganze Datei. Mit Hinweis oder gewünschter Abschnittslänge in eigenen Fenstern (siehe oben)."""
+        fenster_s = fensterlaenge(hinweis, abschnitt_s)
+        if fenster_s is None:
+            return {**self._hoeren(ton, sprache, ""), "abschnitte": []}
+        return self.in_fenstern(ton, sprache, hinweis, stellen, fenster_s)
+
+    def nachhoeren(self, ton: np.ndarray, von: float, bis: float, sprache: str | None, hinweis: str,
+                   stellen: Sequence[luecken.Strecke], fenster_s: float) -> list[dict]:
+        """Nur diese Strecke, in kleinen Fenstern; Zeiten auf die Datei."""
+        darin = [(max(a, von) - von, min(b, bis) - von) for a, b in stellen if a < bis and b > von]
+        return verschieben(self.in_fenstern(ton[int(von * RATE):int(bis * RATE)], sprache, hinweis, darin, fenster_s)["segments"], von)
+
     def abschnitte(self, pfad: str, hoechstens_s: float = ABSCHNITT_HOECHSTENS_S) -> list[dict]:
         return [{"start": f.start, "end": f.ende} for f in self.pausen.abschnitte(mono_16k(pfad), hoechstens_s)]
+
+
+def nachholen(motor: Any, ton: np.ndarray, stellen: Sequence[luecken.Strecke], gut: list[dict], weg: list[Aussortiert],
+              sprache: str | None, hinweis: str) -> tuple[list[dict], list[dict], list[dict]]:
+    """Sprache ohne Text noch einmal hören. Segmente samt Nachgehörtem, was dazukam, und was trotzdem fehlt."""
+    gestrichen = [(a.start, a.end, a.grund) for a in weg]
+    dazu: list[dict] = []
+    for fenster_s, mit_hinweis in NACHHOEREN:
+        for l in luecken.finden(stellen, gut, gestrichen):
+            h = hinweis if mit_hinweis else ""
+            roh = motor.nachhoeren(ton, l.start, l.ende, sprache, h, stellen, fenster_s)
+            neu = nachgehoert_annehmen(roh, h, [a.text for a in weg if a.start < l.ende and a.end > l.start])
+            worte = sum(len(x["words"]) for x in neu)
+            log.info("Nachgehört %.1f bis %.1f s (%s, Fenster %.0f s): %d Segmente, %d Wörter", l.start, l.ende, l.grund or "ausgelassen", fenster_s, len(neu), worte)
+            if neu:
+                gut = sorted([*gut, *neu], key=lambda s: s["start"])
+                dazu.append({"start": round(neu[0]["start"], 3), "end": round(neu[-1]["end"], 3), "grund": l.grund or "ausgelassen", "woerter": worte})
+    rest = [l.als_dict() for l in luecken.finden(stellen, gut)]
+    for r in rest:
+        log.warning("Sprache ohne Text: %.1f bis %.1f s", r["start"], r["end"])
+    return gut, dazu, rest
+
+
+def vollstaendig(motor: Any, pfad: str, sprache: str | None, hinweis: str = "", abschnitt_s: float | None = None) -> dict:
+    """Hören, aussortieren, Fehlendes nachholen, zu Abschnitten zusammenfassen."""
+    ton = motor.ton(pfad)
+    stellen = motor.stellen(ton)
+    roh = motor.erkennen(ton, sprache, hinweis, abschnitt_s, stellen)
+    gut, weg = aussortieren(roh.get("segments", []), hinweis)
+    gut, dazu, rest = nachholen(motor, ton, stellen, gut, weg, sprache or roh.get("language"), hinweis)
+    return {"segments": zusammenfassen(gut), "language": roh.get("language"), "abschnitte": roh.get("abschnitte", []),
+            "nachgehoert": dazu, "luecken": rest}
 
 
 def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = None):
@@ -210,10 +316,10 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
     app = anwendung("hoeren", rechner, motor.laden, "Hören")
 
     async def ganz(pfad: Path, sprache: str, hinweis: str = "", abschnitt_s: float | None = None) -> dict:
-        roh = await rechner.rechnen(motor.erkennen, str(pfad), sprachcode(sprache), hinweis, abschnitt_s)
-        segmente = segmente_bereinigen(roh.get("segments", []), hinweis)
-        return {"text": " ".join(s["text"].strip() for s in segmente), "segments": segmente, "speakers": [],
-                "language": roh.get("language", sprache), "model": name, "abschnitte": roh.get("abschnitte", [])}
+        gehoert = await rechner.rechnen(vollstaendig, motor, str(pfad), sprachcode(sprache), hinweis, abschnitt_s)
+        return {"text": " ".join(s["text"].strip() for s in gehoert["segments"]), "segments": gehoert["segments"], "speakers": [],
+                "language": gehoert["language"] or sprache, "model": name, "abschnitte": gehoert["abschnitte"],
+                "nachgehoert": gehoert["nachgehoert"], "luecken": gehoert["luecken"]}
 
     @app.post("/stt")
     async def stt(file: UploadFile = File(...), language: str = Form("german"), diarize: bool = Form(True),
@@ -241,13 +347,13 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
             return PlainTextResponse(ergebnis["text"])
         if response_format == "json":
             return {"text": ergebnis["text"]}
-        return {"text": ergebnis["text"], "language": ergebnis["language"], "segments": ergebnis["segments"]}
+        return {"text": ergebnis["text"], "language": ergebnis["language"], "segments": ergebnis["segments"], "luecken": ergebnis["luecken"]}
 
     async def strom(pfad: Path, sprache: str, hinweis: str = "") -> AsyncIterator[dict]:
         """Abschnittsweise erkennen und jedes Segment sofort mit absoluten Zeiten liefern."""
         gesamt = await asyncio.to_thread(dauer_s, str(pfad))
         abschnitte = await asyncio.to_thread(motor.abschnitte, str(pfad))
-        alle, nummer = [], 0
+        alle, fehlt, nummer = [], [], 0
         for a in abschnitte:
             if a["end"] - a["start"] < 0.3:
                 continue
@@ -255,8 +361,9 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
             os.close(fd)
             try:
                 await asyncio.to_thread(ausschneiden, str(pfad), a["start"], a["end"], teil)
-                roh = await rechner.rechnen(motor.erkennen, teil, sprachcode(sprache), hinweis)
-                for s in segmente_bereinigen(roh.get("segments", []), hinweis):
+                gehoert = await rechner.rechnen(vollstaendig, motor, teil, sprachcode(sprache), hinweis)
+                fehlt += [{**l, "start": round(l["start"] + a["start"], 3), "end": round(l["end"] + a["start"], 3)} for l in gehoert["luecken"]]
+                for s in gehoert["segments"]:
                     s["start"], s["end"] = round(s["start"] + a["start"], 3), round(s["end"] + a["start"], 3)
                     for w in s.get("words", []):
                         w["start"], w["end"] = round(w["start"] + a["start"], 3), round(w["end"] + a["start"], 3)
@@ -270,7 +377,7 @@ def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = 
                 wegraeumen(teil)
             nummer += 1
             await asyncio.sleep(0)
-        yield {"_stats": {"model": name, "language": sprache, "total_chunks": nummer, "total_duration": round(gesamt, 1)},
+        yield {"_stats": {"model": name, "language": sprache, "total_chunks": nummer, "total_duration": round(gesamt, 1), "luecken": fehlt},
                "_text": " ".join(s["text"].strip() for s in alle)}
 
     @app.post("/stt/stream")
