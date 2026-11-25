@@ -14,8 +14,9 @@ Formularwert `diarize` wird angenommen und ignoriert (`speakers` bleibt leer).
 
 Nichts Gesprochenes fällt still weg (BT-91): nach dem Erkennen vergleicht der Dienst die Sprachstellen mit den Wörtern
 der Abschrift (Modul `luecken`). Was fehlt, weil Whisper es ausließ oder ein Filter strich, hört er noch einmal für sich,
-zuerst in Fenstern bis 12 s, dann bis 6 s ohne Hinweis; übernommen wird nur, was Whisper dabei sicher hört. Bleibt dann
-noch Sprache ohne Text, steht sie in `luecken`, erfunden wird nichts; `nachgehoert` nennt, was dazukam.
+zuerst in Fenstern bis 12 s, dann bis 6 s ohne Hinweis, zuletzt mit ein paar Sekunden Umfeld, aus dem nur die Wörter
+in der Lücke gelten; übernommen wird nur, was Whisper dabei sicher hört. Bleibt dann noch Sprache ohne Text, steht sie in
+`luecken`, erfunden wird nichts; `nachgehoert` nennt, was dazukam.
 
 Schnittstelle wie bisher (`POST /stt`, `POST /stt/stream` als Ereignisstrom) und im üblichen Format
 (`POST /v1/audio/transcriptions`).
@@ -57,7 +58,16 @@ SEGMENT_MINDESTENS_S = 6             # Segmente unter 6 s zusammenführen
 SEGMENT_HOECHSTENS_S = 15            # über 15 s an einer Pause teilen
 PAUSE_S = 0.3
 FENSTER_S = 28                       # mit Hinweis: eigene Fenster unter den 30 s von Whisper, damit jedes ihn bekommt
-NACHHOEREN = ((12.0, True), (6.0, False))      # je Versuch: Fenster höchstens, mit Hinweis
+
+
+@dataclass(frozen=True)
+class Versuch:
+    fenster_s: float              # Fenster höchstens
+    mit_hinweis: bool = False
+    umfeld_s: float = 0.0         # so viel davor und danach wird mitgehört; von dort gilt kein Wort
+
+
+NACHHOEREN = (Versuch(12.0, mit_hinweis=True), Versuch(6.0), Versuch(20.0, umfeld_s=4.0))
 SICHER_LOGPROB, SICHER_KOMPRESSION, SICHER_OHNE_SPRACHE = -1.0, 2.4, 0.6      # Nachgehörtes: nur was Whisper sicher hört
 HINWEIS_HOECHSTENS = 1000            # Zeichen; Whisper nimmt ohnehin nur die letzten 223 Merkmale des vorigen Texts
 HALLUZINATIONEN = ("Untertitel von", "Untertitelung", "Vielen Dank für", "Copyright", "www.", "http", "Abonniere", "Musik", "♪", "🎵")
@@ -148,6 +158,16 @@ def sicher(s: dict) -> bool:
     if (s.get("avg_logprob") or 0.0) < SICHER_LOGPROB or (s.get("compression_ratio") or 0.0) > SICHER_KOMPRESSION:
         return False
     return (s.get("no_speech_prob") or 0.0) <= SICHER_OHNE_SPRACHE or (s.get("avg_logprob") or 0.0) > -0.5
+
+
+def nur_in(segmente: Sequence[dict], von: float, bis: float) -> list[dict]:
+    """Nur die Wörter, die ganz in dieser Strecke liegen; der Text folgt ihnen."""
+    aus = []
+    for s in segmente:
+        worte = [w for w in s.get("words") or [] if w["start"] >= von and w["end"] <= bis]
+        if worte:
+            aus.append({**s, "start": worte[0]["start"], "end": worte[-1]["end"], "words": worte, "text": "".join(w["word"] for w in worte)})
+    return aus
 
 
 def nachgehoert_annehmen(segmente: Sequence[dict], hinweis: str, frueher: Sequence[str]) -> list[dict]:
@@ -280,13 +300,16 @@ def nachholen(motor: Any, ton: np.ndarray, stellen: Sequence[luecken.Strecke], g
     """Sprache ohne Text noch einmal hören. Segmente samt Nachgehörtem, was dazukam, und was trotzdem fehlt."""
     gestrichen = [(a.start, a.end, a.grund) for a in weg]
     dazu: list[dict] = []
-    for fenster_s, mit_hinweis in NACHHOEREN:
+    for v in NACHHOEREN:
         for l in luecken.finden(stellen, gut, gestrichen):
-            h = hinweis if mit_hinweis else ""
-            roh = motor.nachhoeren(ton, l.start, l.ende, sprache, h, stellen, fenster_s)
+            h = hinweis if v.mit_hinweis else ""
+            roh = motor.nachhoeren(ton, max(0.0, l.start - v.umfeld_s), l.ende + v.umfeld_s, sprache, h, stellen, v.fenster_s)
+            if v.umfeld_s:
+                roh = nur_in(roh, l.start, l.ende)
             neu = nachgehoert_annehmen(roh, h, [a.text for a in weg if a.start < l.ende and a.end > l.start])
             worte = sum(len(x["words"]) for x in neu)
-            log.info("Nachgehört %.1f bis %.1f s (%s, Fenster %.0f s): %d Segmente, %d Wörter", l.start, l.ende, l.grund or "ausgelassen", fenster_s, len(neu), worte)
+            log.info("Nachgehört %.1f bis %.1f s (%s, Fenster %.0f s, Umfeld %.0f s): %d von %d Segmenten, %d Wörter, unsicher %d", l.start, l.ende,
+                     l.grund or "ausgelassen", v.fenster_s, v.umfeld_s, len(neu), len(roh), worte, sum(not sicher(x) for x in roh))
             if neu:
                 gut = sorted([*gut, *neu], key=lambda s: s["start"])
                 dazu.append({"start": round(neu[0]["start"], 3), "end": round(neu[-1]["end"], 3), "grund": l.grund or "ausgelassen", "woerter": worte})

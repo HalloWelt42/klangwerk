@@ -126,11 +126,24 @@ def test_zweiter_versuch_ohne_hinweis_in_kleineren_fenstern():
     assert [(x[3], x[4]) for x in m.nachgefragt] == [("Fachwörter: Qwen, ComfyUI.", 12.0), ("", 6.0)] and e["luecken"] == []
 
 
+def test_zuletzt_mit_umfeld_und_nur_die_woerter_in_der_luecke():
+    """Für sich allein hört das Modell ein kurzes Stück nicht, mit dem Satz ringsum schon."""
+    sprache = [(0.0, 10.0), (10.6, 13.0), (14.0, 30.0)]
+    erstes = [segment(0, 10, satz(25, "a")), segment(14, 30, satz(40, "c"))]
+    ringsum = segment(8.0, 16.0, satz(16, "r"))                                   # je Wort 0,5 s
+    m = Vergesslich(sprache, erstes, lambda von, bis, h, f: [ringsum] if von < 7 else [])
+    e = hoeren.vollstaendig(m, "x", "de")
+    text = " ".join(s["text"] for s in e["segments"])
+    drin = [i for i in range(16) if f"r{i}" in text.split()]
+    assert drin and all(10.0 <= 8.0 + i * 0.5 and 8.5 + i * 0.5 <= 14.0 for i in drin) and e["luecken"] == []
+    assert m.nachgefragt[-1][0] == pytest.approx(m.nachgefragt[0][0] - 4.0) and m.nachgefragt[-1][4] == 20.0
+
+
 def test_unsicheres_wird_nie_text_sondern_benannt():
     for unsicher in ({"avg_logprob": -1.6}, {"compression_ratio": 3.4}, {"no_speech_prob": 0.9, "avg_logprob": -0.8}):
         m = Vergesslich(SPRACHE, [segment(0, 10, satz(25, "a")), segment(31, 40, satz(22, "c"))], lambda von, bis, h, f, u=unsicher: [segment(10.6, 30, satz(45, "b"), **u)])
         e = hoeren.vollstaendig(m, "x", "de")
-        assert "b0" not in str(e["segments"]) and e["nachgehoert"] == [] and len(m.nachgefragt) == 2
+        assert "b0" not in str(e["segments"]) and e["nachgehoert"] == [] and len(m.nachgefragt) == 3
         [l] = e["luecken"]
         assert 10.0 <= l["start"] <= 10.6 and 30.0 <= l["end"] <= 31.0 and l["sprache_s"] > 18
 
