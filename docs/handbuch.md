@@ -11,7 +11,7 @@ sicherung:
 schluessel_orte:
   - "Mac: `KLANGWERK_HF_TOKEN` unter `[umgebung]` in `~/Maschinenraum/dienste/klangwerk-trennen.toml` (Zugang für das gesperrte Modell der Sprechertrennung)"
 einrichten: einrichten.sh
-stand: be15623
+stand: 91f8e9e
 ---
 
 # Klangwerk
@@ -93,6 +93,8 @@ setzen danach `HF_HUB_OFFLINE=1`. Für `trennen` vorher den Zugang als `KLANGWER
 Dienstdatei schreiben.
 
 Probe: der Dienst meldet auf `/gesundheit` den Zustand `bereit` (beim Laden 503 mit `laedt`, ohne Zugang `ohne_zugang`).
+Ohne zu starten: `.venv/bin/python -m klangwerk <dienst> --pruefen` sagt `vorhanden` oder `fehlt` mit Grund; so prüft
+auch der Maschinenraum (Feld `modellpruefung` der Dienstdatei, die Installation trägt es in neue Dateien ein).
 
 ### 3. Starten über den Maschinenraum
 
@@ -115,9 +117,11 @@ Die Reparatur der Sprachwahl, der vollständigen Ausgabe, des Tempos und kurzer 
 das Tempo wird nach der Synthese bei gleicher Tonhöhe umgesetzt. Die Vertonung unterscheidet neue Ergebnisse über eine
 eigene Synthesefassung, ohne frühere Audiofassungen zu löschen (HELF-247).
 
-- Ein Dienst bleibt bei `laedt` oder endet sofort: das Modell fehlt in der Modellablage und die Dienstdatei sperrt das
-  Netz (`HF_HUB_OFFLINE=1`); Schritt 2.
-- `trennen` meldet `ohne_zugang`: `KLANGWERK_HF_TOKEN` fehlt oder das Modell ist für den Zugang nicht freigeschaltet.
+- Ein Dienst meldet `gestoert` mit "Modell fehlt" oder startet gar nicht: das Modell fehlt in der Modellablage, und die
+  Dienstdatei sperrt das Netz (`HF_HUB_OFFLINE=1`); Schritt 2. Nennt der Grund Links ins Leere, ist es mit Links aufs
+  Hauptlager ausgelagert und das Hauptlager nicht eingehängt.
+- `trennen` meldet `ohne_zugang`: `KLANGWERK_HF_TOKEN` fehlt oder das Modell ist für den Zugang nicht freigeschaltet (ein
+  fehlendes Modell heißt dort `gestoert`).
 - Der Tondienst meldet nicht bereit: ffmpeg oder ffprobe fehlen im Suchpfad des Maschinenraums (Homebrew).
 - In einer Abschrift fehlt Gesprochenes: der Hördienst (Whisper) vergleicht nach dem Erkennen die Sprachstellen mit den
   Wörtern und hört jede Strecke ohne Text noch einmal für sich (BT-91). Was er dabei nicht sicher hört, steht als

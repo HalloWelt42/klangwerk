@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi import File, Form, HTTPException, UploadFile
 
+from .modellpruefung import fehlt
 from .stimmdaten import RATE, mono_16k
 from .unterbau import Einstellungen, Rechner, ZugangFehlt, anwendung, datei_annehmen, wegraeumen
 
@@ -30,6 +31,10 @@ class Motor:
         schluessel = zugang or "<anmeldung>"
         if self.gescheitert_fuer == schluessel:
             raise ZugangFehlt("Modell mit diesem Zugang nicht ladbar; Zugang prüfen und Dienst neu starten")
+        # Fehlt das Modell im Zwischenspeicher, ist das kein fehlender Zugang (MR-11: früher "ohne_zugang"): gestört,
+        # und kein Merken des Zugangs, denn mit dem Modell zurück gelingt derselbe Zugang wieder
+        if grund := fehlt(pipeline_modelle(self.modell)):
+            raise RuntimeError(f"Modell fehlt: {grund}")
         from pyannote.audio import Pipeline
         try:
             try:
@@ -64,9 +69,32 @@ class Motor:
                 for t, _, name in annotation.itertracks(yield_label=True)]
 
 
+def hauptmodell(e: Einstellungen) -> str:
+    """Das Modell dieses Dienstes: KLANGWERK_MODELL der Dienstdatei, sonst die Vorgabe."""
+    return e.modell or VORGABE
+
+
+def pipeline_modelle(haupt: str) -> list[str]:
+    """Die Pipeline und die Repos, die ihre config.yaml nennt (Segmentierung, Stimmabdruck). Fehlt die Pipeline, nur
+    sie (die Prüfung meldet sie dann)."""
+    import yaml
+    from .modellpruefung import ModellFehlt, schnappschuss
+    try:
+        datei = schnappschuss(haupt) / "config.yaml"
+        werte = (yaml.safe_load(datei.read_text()) or {}).get("pipeline", {}).get("params", {}) if datei.exists() else {}
+    except (ModellFehlt, OSError, yaml.YAMLError):
+        return [haupt]
+    return [haupt, *(w for w in werte.values() if isinstance(w, str) and w.count("/") == 1 and not w.startswith((".", "/")))]
+
+
+def modelle(e: Einstellungen) -> list[str]:
+    """Die Repos, die der Dienst lädt (Modellprüfung ohne Laden, MR-11)."""
+    return pipeline_modelle(hauptmodell(e))
+
+
 def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = None):
     e = einstellungen or Einstellungen()
-    modell = e.modell or VORGABE
+    modell = hauptmodell(e)
     motor = motor or Motor(modell, e.hf_token)
     rechner = Rechner("trennen", modell, e)
     app = anwendung("trennen", rechner, motor.laden, "Sprechertrennung")

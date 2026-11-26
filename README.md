@@ -52,7 +52,13 @@ langsamer als allein. Der Zwischenspeicher für Grafikpuffer ist begrenzt (`KLAN
 ## Schnittstellen
 
 Jeder Dienst: `GET /gesundheit` (200, sobald das Modell bereit ist, sonst 503 mit `zustand` laedt, ohne_zugang oder
-gestoert).
+gestoert). Ein fehlendes Modell heißt gestoert, mit dem Grund in `meldung`; ohne_zugang bleibt dem fehlenden Zugang zu
+gesperrten Modellen.
+
+Modellprüfung ohne Laden und ohne Netz: `klangwerk <dienst> --pruefen` endet mit 0, wenn alle Modelle des Dienstes im
+Zwischenspeicher liegen (bei der Sprechertrennung samt den Teilmodellen ihrer Pipeline, beim Hören mit MOSS samt
+Stimmabdruck), sonst mit 1. Die letzte Zeile nennt den Grund, auch Links ins Leere (Hauptlager nicht eingehängt). Der
+Maschinenraum ruft das über das Feld `modellpruefung` der Dienstdatei.
 
 | Dienst | Aufrufe |
 |---|---|

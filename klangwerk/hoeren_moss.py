@@ -417,9 +417,20 @@ def zusammenfuehren(ton: np.ndarray, plan: list[Abschnitt], sprache_stellen: lis
     return bericht
 
 
+def hauptmodell(e: Einstellungen) -> str:
+    """Das Modell dieses Dienstes: KLANGWERK_MODELL der Dienstdatei, sonst die Vorgabe."""
+    return e.modell or VORGABE
+
+
+def modelle(e: Einstellungen) -> list[str]:
+    """Die Repos, die der Dienst lädt (Modellprüfung ohne Laden, MR-11): das Modell und der Stimmabdruck (ECAPA)."""
+    from .sprecher import VORGABE as ECAPA
+    return [hauptmodell(e), ECAPA]
+
+
 def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = None):
     e = einstellungen or Einstellungen()
-    modell = e.modell or VORGABE
+    modell = hauptmodell(e)
     name = NAMEN.get(modell, modell)
     hoechstens_s = e.abschnitt_hoechstens_s or ABSCHNITT_OBERGRENZE_S
     vorgabe_s = min(e.abschnitt_s or ABSCHNITT_VORGABE_S, hoechstens_s)

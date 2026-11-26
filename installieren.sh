@@ -33,6 +33,7 @@ name = "$2"
 beschreibung = "$3"
 ordner = "$HIER"
 befehl = ["${12:-.venv}/bin/python", "-m", "klangwerk", "${10:-$1}", "--port", "\$MASCHINENRAUM_PORT"]
+modellpruefung = ["${12:-.venv}/bin/python", "-m", "klangwerk", "${10:-$1}", "--pruefen"]
 port = $4
 pruefadresse = "http://127.0.0.1:$4/gesundheit"
 faehigkeiten = [${faehigkeiten%, }]

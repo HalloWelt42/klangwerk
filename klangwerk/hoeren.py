@@ -330,9 +330,19 @@ def vollstaendig(motor: Any, pfad: str, sprache: str | None, hinweis: str = "", 
             "nachgehoert": dazu, "luecken": rest}
 
 
+def hauptmodell(e: Einstellungen) -> str:
+    """Das Modell dieses Dienstes: KLANGWERK_MODELL der Dienstdatei, sonst die Vorgabe."""
+    return e.modell or VORGABE
+
+
+def modelle(e: Einstellungen) -> list[str]:
+    """Die Repos, die der Dienst lädt (Modellprüfung ohne Laden, MR-11)."""
+    return [hauptmodell(e)]
+
+
 def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = None):
     e = einstellungen or Einstellungen()
-    modell = e.modell or VORGABE
+    modell = hauptmodell(e)
     name = NAMEN.get(modell, modell)
     motor = motor or Motor(modell)
     rechner = Rechner("hoeren", modell, e)

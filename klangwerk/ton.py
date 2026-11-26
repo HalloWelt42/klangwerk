@@ -14,6 +14,11 @@ from .unterbau import Einstellungen, Rechner, anwendung
 PORT = 8786
 
 
+def modelle(_e: Einstellungen) -> list[str]:
+    """Der Tondienst lädt kein Modell (ffmpeg)."""
+    return []
+
+
 def erstellen(einstellungen: Einstellungen | None = None):
     from appkern.ton import Ton, TonHier, programm
     from appkern.ton.gegenseite import routen

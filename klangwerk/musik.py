@@ -87,9 +87,19 @@ class Motor:
         return stuecke[0] if len(stuecke) == 1 else np.concatenate(stuecke, axis=0)
 
 
+def hauptmodell(e: Einstellungen) -> str:
+    """Das Modell dieses Dienstes: KLANGWERK_MODELL der Dienstdatei, sonst die Vorgabe."""
+    return e.modell or VORGABE
+
+
+def modelle(e: Einstellungen) -> list[str]:
+    """Die Repos, die der Dienst lädt (Modellprüfung ohne Laden, MR-11)."""
+    return [hauptmodell(e)]
+
+
 def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = None):
     e = einstellungen or Einstellungen()
-    modell = e.modell or VORGABE
+    modell = hauptmodell(e)
     motor = motor or Motor(modell)
     rechner = Rechner("musik", modell, e)
     app = anwendung("musik", rechner, motor.laden, "Musik")

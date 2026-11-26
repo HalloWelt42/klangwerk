@@ -100,9 +100,19 @@ def _modell_passt(gewuenscht: str | None, gehalten: str) -> None:
         raise HTTPException(409, f"Dieser Dienst hält {gehalten}; für {gewuenscht} einen eigenen Dienst mit diesem Modell starten.")
 
 
+def hauptmodell(e: Einstellungen) -> str:
+    """Das Modell dieses Dienstes: KLANGWERK_MODELL der Dienstdatei, sonst die Vorgabe."""
+    return KURZNAMEN.get(e.modell or "", e.modell) or VORGABE
+
+
+def modelle(e: Einstellungen) -> list[str]:
+    """Die Repos, die der Dienst lädt (Modellprüfung ohne Laden, MR-11)."""
+    return [hauptmodell(e)]
+
+
 def erstellen(einstellungen: Einstellungen | None = None, motor: Motor | None = None):
     e = einstellungen or Einstellungen()
-    modell = KURZNAMEN.get(e.modell or "", e.modell) or VORGABE
+    modell = hauptmodell(e)
     motor = motor or Motor(modell)
     rechner = Rechner("sprechen", modell, e)
     app = anwendung("sprechen", rechner, motor.laden, "Sprechen")
